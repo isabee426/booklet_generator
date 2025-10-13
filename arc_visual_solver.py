@@ -60,6 +60,9 @@ class ARCVisualSolver:
         self.current_task_name = None
         self.current_training_example = 0
         self.current_expected_output = None  # For verification
+        self.current_phase = None  # Track which phase we're in (for verification control)
+        self.current_step_number = 1  # Track step number (increments only when transform created)
+        self.last_transform_path = None  # Track last transform for context building
         
         # Use img_tmp directory in project root
         self.temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img_tmp")
@@ -100,46 +103,31 @@ class ARCVisualSolver:
         training_dir = os.path.join(task_dir, f"training_{self.current_training_example + 1}")
         os.makedirs(training_dir, exist_ok=True)
         
-        # Get list of existing transform files to determine next step number
-        transform_files = sorted([
-            f for f in os.listdir(training_dir)
-            if f.endswith('.png') 
-            and not f.startswith('XX_')
-            and not f.startswith('YY_')
-            and not f.startswith('h_')  # Skip hypotheticals
-        ])
-        
-        # Extract step numbers from transform files only
-        step_numbers = []
-        for f in transform_files:
-            parts = f.split('_', 1)
-            if parts[0].isdigit():
-                step_numbers.append(int(parts[0]))
-        
-        # Next step is one more than the highest existing step
-        next_step = max(step_numbers) + 1 if step_numbers else 1
+        # Use current step number (only increments when transform is created)
+        step_num = self.current_step_number
         
         # Add step information to metadata
         if not img.info:
             img.info = {}
-        img.info['step_number'] = str(next_step)
+        img.info['step_number'] = str(step_num)
         
         if visualization_type == "hypothetical":
-            # Count existing hypotheticals for this step (flat structure)
-            hyp_pattern = f"{next_step:02d}_*_hypothetical.png"
-            existing_hyps = [f for f in os.listdir(training_dir) if f.startswith(f"{next_step:02d}_") and f.endswith("_hypothetical.png")]
-            hyp_num = len(existing_hyps) + 1
+            # Count existing hypotheticals for THIS STEP (flat structure)
+            existing_hyps = [f for f in os.listdir(training_dir) 
+                           if f.startswith(f"{step_num:02d}_") 
+                           and f.endswith("_hypothetical.png")]
+            sequence_num = len(existing_hyps) + 1
             
             # Add hypothetical-specific metadata
-            img.info['hypothetical_number'] = str(hyp_num)
-            img.info['step_description'] = f"Step {next_step} - Hypothetical {hyp_num}: {description}"
+            img.info['hypothetical_number'] = str(sequence_num)
+            img.info['step_description'] = f"Step {step_num} - Hypothetical {sequence_num}: {description}"
             
             # Flat filename: 02_01_hypothetical.png, 02_02_hypothetical.png, etc.
-            filename = f"{next_step:02d}_{hyp_num:02d}_hypothetical.png"
+            filename = f"{step_num:02d}_{sequence_num:02d}_hypothetical.png"
             save_path = os.path.join(training_dir, filename)
             
             # Log hypothetical creation for debugging
-            print(f"  Creating hypothetical {hyp_num} for step {next_step:02d}")
+            print(f"  Creating hypothetical {sequence_num} for step {step_num:02d}")
             print(f"  Filename: {filename}")
             print(f"  Description: {description}")
             print(f"  Grid dimensions before save: {img.size}")
@@ -155,23 +143,28 @@ class ARCVisualSolver:
                 # For input or transformation steps
                 is_input = description.lower().startswith('input')
                 if is_input:
-                    step_num = 1
                     filename = "01_input.png"
                     img.info['step_number'] = '1'
                     img.info['step_description'] = f"Step 1 - Input: {description}"
                 else:
                     # Transform uses the SAME step number as its hypotheticals
                     # Format: 02_04_transform.png (comes after 02_01, 02_02, 02_03 hypotheticals)
-                    step_num = next_step
-                    
                     # Count hypotheticals for this step to get next sequence number
-                    existing_hyps = [f for f in os.listdir(training_dir) if f.startswith(f"{step_num:02d}_") and f.endswith("_hypothetical.png")]
+                    existing_hyps = [f for f in os.listdir(training_dir) 
+                                   if f.startswith(f"{step_num:02d}_") 
+                                   and f.endswith("_hypothetical.png")]
                     sequence_num = len(existing_hyps) + 1
                     
                     filename = f"{step_num:02d}_{sequence_num:02d}_transform.png"
                     img.info['step_number'] = str(step_num)
                     img.info['step_description'] = f"Step {step_num} - Transform: {description}"
+            
             save_path = os.path.join(training_dir, filename)
+            
+            # After saving transform, increment step and track it
+            if not is_model_output and not is_actual_output and not is_input:
+                self.current_step_number += 1
+                self.last_transform_path = save_path
         
         # Save the image with metadata
         # PNG metadata needs to be saved as PngInfo chunks
@@ -217,12 +210,13 @@ class ARCVisualSolver:
         messages = self.conversation_history + [{"role": "user", "content": content}]
         
         # Create the API call with tools always enabled
+        # Model options:
+        # - "gpt-4o" - Best for function calling + vision + reasoning (RECOMMENDED)
+        # - "gpt-4o-mini" - Faster, cheaper, still very capable
+        # - "o1-preview" - Strongest reasoning but limited function calling support
+        # - "o1-mini" - Good reasoning, more affordable
         call_params = {
-            "model": "gpt-5-mini",
-            "reasoning": {
-                "effort": "high"
-                # "max_tokens": 10 * 1000
-            },
+            "model": "gpt-5-mini",  # Using gpt-5-mini (preview/beta model)
             "input": messages,  # Use 'input' instead of 'messages' for responses API
             "tools": [VISUALIZATION_TOOL],
             "tool_choice": "auto"
@@ -289,21 +283,19 @@ class ARCVisualSolver:
                             if visualization_type in ["hypothetical", "transform"]:
                                 if grid_height != expected_height or grid_width != expected_width:
                                     dimension_error = True
-                                    error_msg = f"\n❌ DIMENSION ERROR: Your grid is {grid_width}x{grid_height} but the training examples show outputs are {expected_width}x{expected_height}!"
-                                    error_msg += f"\n⚠️ You MUST create grids with dimensions {expected_width}x{expected_height} (width x height)"
-                                    error_msg += f"\n🔄 Output dimensions are ALWAYS consistent across all examples in ARC tasks."
-                                    error_msg += f"\n📏 Look at the training example outputs - they all have the same dimensions: {expected_width}x{expected_height}"
-                                    error_msg += f"\n💡 Your output for the query must also be {expected_width}x{expected_height}"
-                                    error_msg += f"\n❌ Rejected grid: {description[:80]}"
-                                    print(error_msg)
+                                    error_msg = f"❌ REJECTED: Dimension mismatch - grid is {grid_width}x{grid_height}, expected {expected_width}x{expected_height}"
+                                    print(f"\n{error_msg}")
+                                    print(f"  Rejected: {description[:100]}")
+                                    print(f"  ⚠️ Silently rejecting - will proceed with valid hypotheticals only")
                                     
-                                    # Send error feedback to model
+                                    # Send minimal success response (don't show error to model, just acknowledge)
+                                    # This prevents the model from getting stuck trying to fix dimensions
                                     call_params["input"].append({
                                         "type": "function_call_output",
                                         "call_id": item.call_id,
                                         "output": json.dumps({
-                                            "status": "error",
-                                            "error": error_msg
+                                            "status": "rejected_silently",
+                                            "message": "Grid dimensions don't match output requirements - proceeding with other hypotheticals"
                                         })
                                     })
                                     continue  # Skip creating this visualization
@@ -369,15 +361,21 @@ class ARCVisualSolver:
             # Only verify when:
             # 1. We have at least 3 hypotheticals accumulated, OR
             # 2. A transform was just created (indicating batch is complete)
+            # 3. We are NOT in Phase 4 (test phase - no verification at inference)
             should_verify = False
             if self.accumulated_hypotheticals and hasattr(self, 'current_expected_output') and self.current_expected_output:
-                # Check if a transform was created this iteration
-                transform_created = any(item.type == "function_call" and 
-                                       json.loads(item.arguments).get("visualization_type") == "transform"
-                                       for item in response.output if item.type == "function_call")
-                
-                if transform_created or len(self.accumulated_hypotheticals) >= 5:
-                    should_verify = True
+                # Skip verification if we're in Phase 4 (test phase)
+                if self.current_phase == 4:
+                    should_verify = False
+                    print(f"\n⚠️ Phase 4 (Test): Skipping real-time verification (matching deployment conditions)")
+                else:
+                    # Check if a transform was created this iteration
+                    transform_created = any(item.type == "function_call" and 
+                                           json.loads(item.arguments).get("visualization_type") == "transform"
+                                           for item in response.output if item.type == "function_call")
+                    
+                    if transform_created or len(self.accumulated_hypotheticals) >= 5:
+                        should_verify = True
             
             if should_verify:
                 print(f"\n🔍 Running verification on {len(self.accumulated_hypotheticals)} hypotheticals...")
@@ -385,6 +383,12 @@ class ARCVisualSolver:
                 # Check if we have a valid expected output
                 if not hasattr(self, 'current_expected_output') or not self.current_expected_output:
                     print("  ⚠️ Warning: No expected output set for verification. Skipping verification.")
+                    should_verify = False
+                
+                # Check if we have any valid hypotheticals to verify
+                if len(self.accumulated_hypotheticals) == 0:
+                    print("  ⚠️ No valid hypotheticals to verify (all may have been rejected for dimension mismatch)")
+                    print("  ⏭️ Proceeding to next iteration...")
                     should_verify = False
                 
                 best_grid = None
@@ -424,10 +428,9 @@ class ARCVisualSolver:
                 
                 # Check if we have any valid comparisons
                 if best_desc is None or best_diff == float('inf'):
-                    verification_msg += f"\n⚠️ DIMENSION MISMATCH! All hypotheticals have different grid dimensions than the expected output."
-                    verification_msg += f"\n🔄 You need to create hypotheticals with the correct output dimensions."
-                    verification_msg += f"\n📏 Expected output dimensions: {len(self.current_expected_output[0])}x{len(self.current_expected_output)}"
-                    verification_msg += f"\n💡 Review the expected output size and regenerate hypotheticals with matching dimensions."
+                    verification_msg += f"\n⚠️ No valid hypotheticals to compare (all had dimension mismatches and were rejected)."
+                    verification_msg += f"\n📏 Required output dimensions: {len(self.current_expected_output[0])}x{len(self.current_expected_output)}"
+                    verification_msg += f"\n⏭️ Continuing with next step..."
                 elif best_diff == 0:
                     verification_msg += f"\n🎯 PERFECT MATCH! One of your hypotheticals is exactly correct!"
                     verification_msg += f"\n✨ Perfect hypothetical: {best_desc[:80]}"
@@ -435,13 +438,19 @@ class ARCVisualSolver:
                     verification_msg += f"\n🎉 No need to generate more hypotheticals or transforms - this is the solution!"
                 elif best_diff <= 5:
                     verification_msg += f"\n💡 EXCELLENT! Best match is very close ({best_diff} cells off): {best_desc[:60]}"
-                    verification_msg += f"\n✅ Use this as your transform and proceed."
+                    verification_msg += f"\n✅ Use this as your transform and proceed to the next step."
                 elif best_diff <= 15:
                     verification_msg += f"\n⚠️ MODERATE. Best was {best_diff} cells off: {best_desc[:60]}"
                     verification_msg += f"\n✅ Since you have {len(self.accumulated_hypotheticals)} hypotheticals, pick the best as your transform."
                 else:
                     verification_msg += f"\n❌ All hypotheticals far off (best: {best_diff} cells different): {best_desc[:60]}"
                     verification_msg += f"\n✅ Pick the best one anyway and use it as your transform to move forward."
+                
+                # Add instruction to build on previous transform
+                if self.last_transform_path and best_diff > 0:
+                    verification_msg += f"\n\n🔄 NEXT STEP: Now that you've committed to a transform, generate NEW hypotheticals for the next step."
+                    verification_msg += f"\n   Build on your previous transformation - use it as the starting point for your next brainstorm."
+                    verification_msg += f"\n   Remember: Each new step should refine and build upon the previous transforms."
                 
                 print(verification_msg)
                 
@@ -789,50 +798,62 @@ class ARCVisualSolver:
         print("=== Phase 1: First training example ===")
         print("="*80)
         
+        self.current_phase = 1  # Track phase for verification control
         self.current_training_example = 0
         self.current_expected_output = task['train'][0]['output']  # Set for verification
         self.accumulated_hypotheticals = []  # Reset for new phase
+        self.current_step_number = 1  # Reset step counter for new training example
+        self.last_transform_path = None  # Reset transform tracking
         img = grid_to_image(task['train'][0]['input'], 30)
         input_img_1 = self.save_visualization(img, "input", visualization_type="transform")  # Input is special case
         img = grid_to_image(task['train'][0]['output'], 30)
         output_img_1 = self.save_visualization(img, "actual_output", is_actual_output=True)  # Ground truth
         
         prompt_1 = f"""
-You are looking at a visual puzzle. I'll show you examples of inputs and their corresponding outputs. 
-Your task is to analyze the transformation by following a strict hypothetical-then-transform process.
+You are looking at a visual puzzle. I'm showing you the INPUT and OUTPUT together so you can LEARN THE PATTERN.
 
-CRITICAL INSTRUCTIONS - ANALYZE STEP BY STEP:
+🎯 YOUR CRITICAL ADVANTAGE: You can see BOTH the input AND output for this first example. Use this to deeply understand the transformation rule!
 
-1. FOR EACH STEP OF YOUR ANALYSIS:
+SYSTEMATIC ANALYSIS PROCESS:
 
-   A. HYPOTHETICAL PHASE (EXPLORATION):
-      - Create MULTIPLE 'hypothetical' visualizations first (at least 3-5)
-      - Show different possible ways to understand the transformation
-      - Test different pattern interpretations or approaches
-      - Visualize each potential transformation rule
-      - Use type='hypothetical' for each possibility
-      - Explain what pattern you're testing in each hypothetical
+STEP 1: COMPARE INPUT TO OUTPUT
+- Look at the input grid and output grid side by side
+- What changed? What stayed the same?
+- What patterns do you notice?
+- What's different about the dimensions, colors, shapes, positions?
 
-   B. TRANSFORM PHASE (DECISION):
-      - Review your hypotheticals and choose the best approach
-      - Create ONE 'transform' visualization showing your chosen step
-      - Show the transformation you've committed to
-   - Explain why you chose this particular transformation
-   - Use type='transform' for your final decision
+STEP 2: FORM HYPOTHESES
+For each hypothesis you explore:
+   A. CREATE 3-5 'hypothetical' visualizations testing different pattern interpretations:
+      - Hypothesis 1: Test if pattern is about [specific transformation rule]
+      - Hypothesis 2: Test if pattern is about [different rule]
+      - Hypothesis 3: Test if pattern is about [another rule]
+      - etc.
+   
+   B. VERIFY EACH HYPOTHESIS:
+      - Apply your hypothesized rule to the INPUT
+      - Check: Does it produce something close to the OUTPUT?
+      - Compare your hypothetical to the actual output
+      - Score how well it matches
+   
+   C. COMMIT TO BEST HYPOTHESIS:
+      - Choose the hypothesis that BEST explains input→output transformation
+      - Create ONE 'transform' visualization showing your chosen understanding
+      - Explain WHY this hypothesis explains the transformation
 
-3. REPEAT THIS PROCESS:
-   - Each step should start with hypotheticals
-   - Then commit to one transform
-   - Move to next step and repeat
+STEP 3: BUILD UP COMPLEXITY
+- If the transformation is complex, break it into sub-steps
+- For each sub-step: hypotheticals → transform → next sub-step
+- Build incrementally until you fully reconstruct the output
 
-Remember:
+🔑 KEY PRINCIPLES:
+- You have the ANSWER (the output). Use it to check your hypotheses!
+- Don't guess randomly - systematically test rules against the known output
 - Every transformation is deterministic and reproducible
-- Symbols may have semantic significance in their properties
-- Break down complex transformations into smaller steps
-- Visualize each step to document your reasoning process
-- Use the visualization tool liberally - more visuals are better
+- Compare your hypothetical grids to the actual output to verify correctness
+- Break complex transformations into smaller, verifiable steps
 
-Here's the first training example:
+Here's the first training example - study it carefully:
 
 Input grid ({len(task['train'][0]['input'][0])}x{len(task['train'][0]['input'])} - width x height):
 {self.format_grid(task['train'][0]['input'])}
@@ -840,9 +861,9 @@ Input grid ({len(task['train'][0]['input'][0])}x{len(task['train'][0]['input'])}
 Output grid ({len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} - width x height):
 {self.format_grid(task['train'][0]['output'])}
 
-IMPORTANT: Note the output dimensions are {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])}. In ARC tasks, output dimensions are ALWAYS consistent across all examples.
+IMPORTANT: Output dimensions are {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])}. All outputs in this task will have these exact dimensions.
 
-Analyze this example step by step, creating visualizations for EACH step of your analysis.
+START BY CAREFULLY COMPARING: What transformation converts the input into this specific output? Generate hypothetical visualizations to test different transformation rules, then commit to the one that best reproduces the output.
 """
 
         response_1 = self.call_ai_with_image(prompt_1, [input_img_1, output_img_1])
@@ -854,49 +875,59 @@ Analyze this example step by step, creating visualizations for EACH step of your
             print("=== Phase 2: Second training input - predict output ===")
             print("="*80)
             
+            self.current_phase = 2  # Track phase for verification control
             self.current_training_example = 1
             self.current_expected_output = task['train'][1]['output']  # Set for verification
             self.accumulated_hypotheticals = []  # Reset for new phase
+            self.current_step_number = 1  # Reset step counter for new training example
+            self.last_transform_path = None  # Reset transform tracking
             img = grid_to_image(task['train'][1]['input'], 30)
             input_img_2 = self.save_visualization(img, "input", visualization_type="transform")  # Input is special case
             
             prompt_2 = f"""
-Now I'll show you the second training input. Based on the pattern you observed in the first example, try to predict what the output should be.
+Now apply the pattern you learned from the first example to this NEW input.
+
+🎯 RECALL YOUR LEARNING: In the first example, you identified a transformation rule. Now apply that SAME rule to this new input.
 
 Second training input ({len(task['train'][1]['input'][0])}x{len(task['train'][1]['input'])} - width x height):
 {self.format_grid(task['train'][1]['input'])}
 
-CRITICAL: Your output MUST have dimensions {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} (same as the first example's output). Output dimensions are ALWAYS consistent in ARC tasks!
+CRITICAL: Your output MUST have dimensions {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} (same as first example's output).
 
-CRITICAL INSTRUCTIONS - APPLY THE PATTERN STEP BY STEP:
+APPLY THE LEARNED PATTERN:
 
-1. FOR EACH STEP OF APPLYING THE TRANSFORMATION:
+STEP 1: RECALL THE TRANSFORMATION RULE
+- What pattern did you identify in example 1?
+- What was the core transformation rule?
+- How does it apply generally?
 
-   A. HYPOTHETICAL PHASE (EXPLORATION):
-      - Create MULTIPLE 'hypothetical' visualizations first (at least 3-5)
-      - Show different possible ways to apply the pattern you learned
-      - Test different variations or interpretations of the rule
-      - Visualize each potential application
-      - Use type='hypothetical' for each possibility
-      - Explain what you're trying in each hypothetical
-
-   B. TRANSFORM PHASE (DECISION):
-      - Choose the best approach from your hypotheticals
+STEP 2: APPLY TO NEW INPUT
+For each step of applying the transformation:
+   
+   A. GENERATE HYPOTHETICALS (3-5 variations):
+      - Apply the learned rule to this new input
+      - Test slight variations in how to interpret the rule
+      - Show different ways to apply the same core pattern
+      - Use type='hypothetical' for each variation
+   
+   B. CHOOSE BEST APPLICATION:
+      - Pick the application that most consistently applies your learned rule
       - Create ONE 'transform' visualization
-      - Show your chosen transformation step
-      - Use type='transform' for the step you commit to
-      - Explain why you chose this approach
+      - Use type='transform' for your chosen application
+      - Explain why this is the correct application
 
-2. VERIFY YOUR WORK:
-   - Compare each step to the pattern from the first example
-   - Make sure you're applying the same transformation rule
-   - Check intermediate results make sense
+STEP 3: BUILD INCREMENTALLY
+- If transformation has multiple steps, do them one at a time
+- Each sub-step: hypotheticals → transform → next sub-step
+- Maintain consistency with the rule from example 1
 
-Remember:
-- Create a visualization for EVERY step
-- Show your work incrementally
-- The transformation should be consistent with training example 1
-- Document your entire process through visualizations
+🔑 KEY PRINCIPLES:
+- Apply the SAME transformation rule you identified in example 1
+- Don't introduce new patterns - stay consistent
+- The rule should work the same way on different inputs
+- Build your output step by step, checking consistency at each stage
+
+START NOW: Apply your learned transformation rule from example 1 to this new input. Show your work through hypothetical visualizations, then commit to transforms.
 """
 
             response_2 = self.call_ai_with_image(prompt_2, [input_img_2])
@@ -907,6 +938,7 @@ Remember:
             print("=== Phase 3: Actual second training output ===")
             print("="*80)
             
+            self.current_phase = 3  # Track phase for verification control (post-hoc feedback)
             img = grid_to_image(task['train'][1]['output'], 30)
             output_img_2 = self.save_visualization(img, "output", is_actual_output=True)
             
@@ -996,10 +1028,13 @@ Output:
         print("=== Phase 4: Test input - generate output ===")
         print("="*80)
         
+        self.current_phase = 4  # Track phase - NO VERIFICATION (matches deployment)
         # Increment to final training example + 1 for test case
         self.current_training_example = len(task['train'])
         self.current_expected_output = task['test'][0]['output']  # Set for verification (if available)
         self.accumulated_hypotheticals = []  # Reset for new phase
+        self.current_step_number = 1  # Reset step counter for test example
+        self.last_transform_path = None  # Reset transform tracking
         img = grid_to_image(task['test'][0]['input'], 30)
         test_input_img = self.save_visualization(img, "input")
         
@@ -1007,46 +1042,94 @@ Output:
         test_output_img = self.save_visualization(img, "output", is_actual_output=True)
         print(f"  Test output image saved to: {test_output_img}")
         
-        prompt_test = f"""Now, here's the test input. Apply the pattern you've learned to generate the output.
+        prompt_test = f"""This is the TEST. Apply the transformation rule you learned from the training examples.
+
+🎯 FINAL APPLICATION: You've learned the pattern from 2+ training examples. Now apply it confidently to this test input.
 
 Test input ({len(task['test'][0]['input'][0])}x{len(task['test'][0]['input'])} - width x height):
 {self.format_grid(task['test'][0]['input'])}
 
-CRITICAL OUTPUT DIMENSIONS: Based on all training examples, your output MUST be {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} (width x height). This is non-negotiable - all outputs in this task have these exact dimensions!
+CRITICAL: Output dimensions MUST be {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} (width x height).
 
-CRITICAL INSTRUCTIONS - SOLVE STEP BY STEP:
+SOLVE WITH CONFIDENCE:
 
-1. FOR EACH STEP OF YOUR SOLUTION:
+STEP 1: RECALL YOUR LEARNED PATTERN
+- What transformation rule did you identify?
+- How did it apply across both training examples?
+- What's the core, consistent pattern?
 
-   A. HYPOTHETICAL PHASE (EXPLORATION):
-      - Create MULTIPLE 'hypothetical' visualizations first
-      - Show different possible ways to apply the pattern
-      - Test different variations or approaches
-      - Use type='hypothetical' for each possibility
-      - Explain what you're trying in each hypothetical
-
-   B. TRANSFORM PHASE (DECISION):
-      - Choose the best approach from your hypotheticals
+STEP 2: APPLY TO TEST INPUT
+For each step of the transformation:
+   
+   A. GENERATE HYPOTHETICALS (3-5 applications):
+      - Apply your learned rule to this test input
+      - Show the transformation working step by step
+      - Test slight variations if there's ambiguity
+      - Use type='hypothetical' for each variation
+      - Explain your reasoning for each
+   
+   B. COMMIT TO BEST APPLICATION:
+      - Choose the most consistent application of your learned rule
       - Create ONE 'transform' visualization
-      - Show your chosen transformation
-      - Use type='transform' for the step you commit to
-      - Explain why you chose this approach
+      - Use type='transform' for your committed step
+      - Explain why this correctly applies the pattern
 
-2. VERIFY EACH STEP:
-   - Compare your transforms to training examples
-   - Make sure the pattern is being applied consistently
-   - Check intermediate results match expected patterns
+STEP 3: BUILD THE COMPLETE OUTPUT
+- Apply transformation incrementally
+- Each sub-step: hypotheticals → transform → next sub-step
+- Maintain exact consistency with training examples
+- Verify dimensions and pattern at each stage
 
-Remember:
-- Create a visualization for EVERY step
-- Show your work incrementally
-- Verify each transformation visually
-- Document your entire solution process through visualizations
+🔑 KEY PRINCIPLES:
+- Apply the EXACT SAME rule you learned from training examples
+- The transformation should work consistently across all examples
+- Don't introduce new logic - use what you learned
+- Show your complete reasoning process through visualizations
+- Build confidence by applying the pattern systematically
+
+START NOW: Apply your learned transformation rule to generate the test output. Document every step with visualizations.
 
 IMPORTANT: Provide your final answer as a grid in the exact same format, with square brackets and comma-separated values. Make sure the dimensions are correct."""
 
         response_test = self.call_ai_with_image(prompt_test, [test_input_img])
         num_phases += 1
+        
+        # Post-hoc verification for Phase 4 (calculate scores silently for metadata)
+        if self.accumulated_hypotheticals and self.current_expected_output:
+            print(f"\n📊 Post-hoc analysis: Adding verification metadata to {len(self.accumulated_hypotheticals)} Phase 4 hypotheticals...")
+            
+            best_grid = None
+            best_diff = float('inf')
+            all_hyp_info = []
+            
+            # Calculate scores for all hypotheticals
+            for hyp_grid, hyp_desc, hyp_path in self.accumulated_hypotheticals:
+                score = self.calculate_grid_difference(hyp_grid, self.current_expected_output)
+                all_hyp_info.append({
+                    'path': os.path.basename(hyp_path),
+                    'description': hyp_desc[:80],
+                    'score': score if score != float('inf') else -1
+                })
+                
+                if score < best_diff:
+                    best_diff = score
+                    best_grid = hyp_grid
+            
+            # Add metadata to each hypothetical
+            for hyp_grid, hyp_desc, hyp_path in self.accumulated_hypotheticals:
+                score = self.calculate_grid_difference(hyp_grid, self.current_expected_output)
+                is_chosen = (hyp_grid == best_grid) if best_grid is not None else False
+                
+                self.add_verification_metadata_to_image(
+                    hyp_path,
+                    verification_score=score if score != float('inf') else -1,
+                    is_chosen=is_chosen,
+                    all_hypotheticals=all_hyp_info
+                )
+                
+                print(f"  📊 Metadata added: {os.path.basename(hyp_path)} (score: {score}, chosen: {is_chosen})")
+            
+            print(f"  ✅ Phase 4 metadata complete (no real-time feedback was given during generation)")
         
         # Parse the predicted output
         predicted_output = self.parse_grid_from_response(response_test)
