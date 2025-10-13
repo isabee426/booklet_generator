@@ -1,1 +1,58 @@
-__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large data directories (generated outputs)
+visualizations/
+visualizations_trials/
+batch10-aug10th-organized/
+batch10-aug10th-training/
+batch30-aug11th-eval/
+
+# Temporary files
+img_tmp/
+*.tmp
+
+# Test outputs
+test_visualizations/
+
+# ARC-AGI source data (large - can clone separately)
+ARC-AGI-2/
