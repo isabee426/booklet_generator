@@ -63,6 +63,11 @@ class ARCVisualSolver:
         self.current_phase = None  # Track which phase we're in (for verification control)
         self.current_step_number = 1  # Track step number (increments only when transform created)
         self.last_transform_path = None  # Track last transform for context building
+        self.dimension_rejection_count = 0  # Track how many times all hypotheticals rejected for dimensions
+        self.perfect_rule_found = False  # Track if we found a perfect rule to validate on remaining examples
+        self.perfect_rule_description = None  # Store the perfect rule description
+        self.perfect_rule_validation_failures = 0  # Track failed validation attempts (max 2 retries)
+        self.validation_attempted_examples = []  # Track which training examples were attempted in validation mode
         
         # Use img_tmp directory in project root
         self.temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img_tmp")
@@ -358,10 +363,8 @@ class ARCVisualSolver:
             self.accumulated_hypotheticals.extend(hypotheticals_created_this_iteration)
             
             # Check if we should run verification
-            # Only verify when:
-            # 1. We have at least 3 hypotheticals accumulated, OR
-            # 2. A transform was just created (indicating batch is complete)
-            # 3. We are NOT in Phase 4 (test phase - no verification at inference)
+            # Verify when we have 3+ hypotheticals (encourages proper exploration)
+            # Exception: Skip verification in Phase 4 (test phase - no real-time feedback)
             should_verify = False
             if self.accumulated_hypotheticals and hasattr(self, 'current_expected_output') and self.current_expected_output:
                 # Skip verification if we're in Phase 4 (test phase)
@@ -374,11 +377,16 @@ class ARCVisualSolver:
                                            json.loads(item.arguments).get("visualization_type") == "transform"
                                            for item in response.output if item.type == "function_call")
                     
-                    if transform_created or len(self.accumulated_hypotheticals) >= 5:
+                    # Verify when: transform created OR 3+ hypotheticals accumulated
+                    if transform_created or len(self.accumulated_hypotheticals) >= 3:
                         should_verify = True
             
             if should_verify:
                 print(f"\n🔍 Running verification on {len(self.accumulated_hypotheticals)} hypotheticals...")
+                
+                # Reset dimension rejection counter since we have valid hypotheticals
+                if len(self.accumulated_hypotheticals) > 0:
+                    self.dimension_rejection_count = 0
                 
                 # Check if we have a valid expected output
                 if not hasattr(self, 'current_expected_output') or not self.current_expected_output:
@@ -387,9 +395,38 @@ class ARCVisualSolver:
                 
                 # Check if we have any valid hypotheticals to verify
                 if len(self.accumulated_hypotheticals) == 0:
-                    print("  ⚠️ No valid hypotheticals to verify (all may have been rejected for dimension mismatch)")
-                    print("  ⏭️ Proceeding to next iteration...")
-                    should_verify = False
+                    self.dimension_rejection_count += 1
+                    print(f"  ⚠️ No valid hypotheticals to verify (all were rejected for dimension mismatch)")
+                    print(f"  🔄 Rejection #{self.dimension_rejection_count} - Asking model to retry...")
+                    
+                    # Give up after 2 dimension rejection cycles
+                    if self.dimension_rejection_count >= 2:
+                        print("  ❌ Too many dimension rejections (2+). Moving on to avoid infinite loop.")
+                        print("  ⏭️ Proceeding to next phase...")
+                        self.dimension_rejection_count = 0  # Reset for next phase
+                        should_verify = False
+                    else:
+                        # Give feedback about rejection without revealing the solution
+                        retry_msg = "\n⚠️ ALL HYPOTHETICALS REJECTED: Dimension mismatch\n\n"
+                        retry_msg += "All of your hypothetical grids were rejected because they had incorrect output dimensions.\n\n"
+                        retry_msg += "🔍 DIMENSION INFERENCE REMINDER:\n"
+                        retry_msg += "- Look at the training examples you've seen\n"
+                        retry_msg += "- What was the relationship between input dimensions and output dimensions?\n"
+                        retry_msg += "- Does the output size stay constant?\n"
+                        retry_msg += "- Does it scale with the input?\n"
+                        retry_msg += "- Does it depend on the content/pattern?\n\n"
+                        retry_msg += "⚠️ CRITICAL RULE: Pick ONE dimension size for ALL hypotheticals in your next batch.\n"
+                        retry_msg += "Don't test multiple dimensions simultaneously - commit to one size, test content variations.\n\n"
+                        retry_msg += f"Try again with different output dimensions (attempt {self.dimension_rejection_count}/2)."
+                        
+                        # Inject retry message back into conversation
+                        call_params["input"].append({
+                            "role": "user",
+                            "content": retry_msg
+                        })
+                        
+                        print(retry_msg)
+                        should_verify = False  # Don't verify yet, let model retry
                 
                 best_grid = None
                 best_desc = None
@@ -434,17 +471,30 @@ class ARCVisualSolver:
                 elif best_diff == 0:
                     verification_msg += f"\n🎯 PERFECT MATCH! One of your hypotheticals is exactly correct!"
                     verification_msg += f"\n✨ Perfect hypothetical: {best_desc[:80]}"
-                    verification_msg += f"\n✅ STOPPING EXPLORATION - Moving to next training example immediately."
-                    verification_msg += f"\n🎉 No need to generate more hypotheticals or transforms - this is the solution!"
+                    verification_msg += f"\n\n✅ ACTION REQUIRED: Call the visualization tool NOW with:"
+                    verification_msg += f"\n   - visualization_type='transform'"
+                    verification_msg += f"\n   - Use the EXACT SAME grid as your perfect hypothetical"
+                    verification_msg += f"\n   - Description: explain why this is the solution"
+                    verification_msg += f"\n\nDo NOT ask which to choose - the perfect one is obvious. Generate the transform visualization immediately."
                 elif best_diff <= 5:
                     verification_msg += f"\n💡 EXCELLENT! Best match is very close ({best_diff} cells off): {best_desc[:60]}"
-                    verification_msg += f"\n✅ Use this as your transform and proceed to the next step."
+                    verification_msg += f"\n\n✅ ACTION: Call visualization tool NOW with visualization_type='transform'"
+                    verification_msg += f"\n   Use your best hypothesis as the transform. Don't ask - just generate it."
                 elif best_diff <= 15:
                     verification_msg += f"\n⚠️ MODERATE. Best was {best_diff} cells off: {best_desc[:60]}"
-                    verification_msg += f"\n✅ Since you have {len(self.accumulated_hypotheticals)} hypotheticals, pick the best as your transform."
+                    verification_msg += f"\n\n✅ ACTION: Call visualization tool with visualization_type='transform'"
+                    verification_msg += f"\n   Use your best hypothesis. Generate the transform now."
                 else:
                     verification_msg += f"\n❌ All hypotheticals far off (best: {best_diff} cells different): {best_desc[:60]}"
-                    verification_msg += f"\n✅ Pick the best one anyway and use it as your transform to move forward."
+                    
+                    # If really bad (>30 cells off) and we have few hypotheticals, suggest trying more
+                    if best_diff > 30 and len(self.accumulated_hypotheticals) < 5:
+                        verification_msg += f"\n\n🔄 SUGGESTION: Your hypotheticals are all quite far off."
+                        verification_msg += f"\n   Consider generating 2-3 MORE hypotheticals with completely different approaches."
+                        verification_msg += f"\n   OR if you're confident, generate a 'transform' with your best guess and move forward."
+                    else:
+                        verification_msg += f"\n\n✅ ACTION: Call visualization tool with visualization_type='transform'"
+                        verification_msg += f"\n   Use your best hypothesis anyway. Generate transform to proceed."
                 
                 # Add instruction to build on previous transform
                 if self.last_transform_path and best_diff > 0:
@@ -496,6 +546,12 @@ class ARCVisualSolver:
                 # If perfect match, save it as model output and stop immediately
                 if best_diff == 0 and best_grid is not None and best_desc is not None:
                     print("\n🎯 Perfect match found! Saving as model output and stopping current phase early.")
+                    
+                    # Mark that we found a perfect rule (for validation on remaining examples)
+                    if self.current_training_example <= 1:  # Found on training 1 or 2
+                        self.perfect_rule_found = True
+                        self.perfect_rule_description = best_desc
+                        print("  ✨ Perfect rule identified early - will validate on remaining training examples")
                     
                     # Save the perfect solution as XX_model_output.png
                     perfect_img = grid_to_image(best_grid, 30)
@@ -792,6 +848,7 @@ class ARCVisualSolver:
         # Reset conversation history
         self.conversation_history = []
         num_phases = 0
+        self.correct_rules = []  # Track successful rules from training examples
         
         # Phase 1: Show first training example with visual
         print("\n" + "="*80)
@@ -822,23 +879,28 @@ STEP 1: COMPARE INPUT TO OUTPUT
 - What patterns do you notice?
 - What's different about the dimensions, colors, shapes, positions?
 
-STEP 2: FORM HYPOTHESES
+STEP 2: FORM HYPOTHESES BY GENERATING VISUALIZATIONS
+⚠️ YOU MUST USE THE VISUALIZATION TOOL - Don't just describe, actually create the images!
+
 For each hypothesis you explore:
    A. CREATE 3-5 'hypothetical' visualizations testing different pattern interpretations:
-      - Hypothesis 1: Test if pattern is about [specific transformation rule]
-      - Hypothesis 2: Test if pattern is about [different rule]
-      - Hypothesis 3: Test if pattern is about [another rule]
-      - etc.
+      - ⚠️ CRITICAL: Call the visualization tool with type='hypothetical' for EACH hypothesis
+      - ⚠️ CRITICAL: ALL hypotheticals in this batch must use the SAME output dimensions
+      - Pick ONE dimension size based on the pattern, then test variations of the content
+      - Hypothesis 1: Test if pattern is about [specific transformation rule] → CALL TOOL
+      - Hypothesis 2: Test if pattern is about [different rule] → CALL TOOL
+      - Hypothesis 3: Test if pattern is about [another rule] → CALL TOOL
+      - Generate at least 3 hypothetical grids, each testing a distinct interpretation
    
-   B. VERIFY EACH HYPOTHESIS:
-      - Apply your hypothesized rule to the INPUT
-      - Check: Does it produce something close to the OUTPUT?
-      - Compare your hypothetical to the actual output
-      - Score how well it matches
+   B. WAIT FOR VERIFICATION:
+      - The system will automatically compare your hypotheticals to the actual output
+      - You'll receive scores showing which hypothesis is closest
+      - Use this feedback to understand which rule works best
    
    C. COMMIT TO BEST HYPOTHESIS:
-      - Choose the hypothesis that BEST explains input→output transformation
-      - Create ONE 'transform' visualization showing your chosen understanding
+      - Based on verification scores, choose the best hypothesis
+      - Create ONE 'transform' visualization (type='transform') showing your final understanding
+      - CALL THE TOOL - don't just describe the transform in text
       - Explain WHY this hypothesis explains the transformation
 
 STEP 3: BUILD UP COMPLEXITY
@@ -848,22 +910,59 @@ STEP 3: BUILD UP COMPLEXITY
 
 🔑 KEY PRINCIPLES:
 - You have the ANSWER (the output). Use it to check your hypotheses!
-- Don't guess randomly - systematically test rules against the known output
+- YOU MUST GENERATE ACTUAL VISUALIZATIONS - use the tool, don't just write text descriptions
+- Generate multiple hypothetical grids to test different transformation rules
+- The system will verify your hypotheticals and tell you which is closest
 - Every transformation is deterministic and reproducible
-- Compare your hypothetical grids to the actual output to verify correctness
 - Break complex transformations into smaller, verifiable steps
 
-Here's the first training example - study it carefully:
+⚠️ IMPORTANT: Your response MUST include visualization tool calls. Text-only explanations without tool calls will not be accepted.
 
-Input grid ({len(task['train'][0]['input'][0])}x{len(task['train'][0]['input'])} - width x height):
+Here's the first training example:
+
+📸 IMAGE 1: Input grid ({len(task['train'][0]['input'][0])}x{len(task['train'][0]['input'])})
+📸 IMAGE 2: Output grid ({len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])})
+
+Input grid:
 {self.format_grid(task['train'][0]['input'])}
 
-Output grid ({len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} - width x height):
+Output grid (TARGET to match):
 {self.format_grid(task['train'][0]['output'])}
 
-IMPORTANT: Output dimensions are {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])}. All outputs in this task will have these exact dimensions.
+🎯 YOUR TASK: FIND THE TRANSFORMATION RULE
+You can see both input and output. Your job is to figure out WHAT RULE transforms the input into this output.
 
-START BY CAREFULLY COMPARING: What transformation converts the input into this specific output? Generate hypothetical visualizations to test different transformation rules, then commit to the one that best reproduces the output.
+⚠️ CRITICAL: Do NOT just copy the output values!
+Instead, TEST DIFFERENT TRANSFORMATION RULES until you find which one produces this output.
+
+PROCESS:
+1. Generate 3-5 hypotheticals, each testing a DIFFERENT transformation rule
+   - Hypothesis 1: "What if the rule is [specific approach]?" → Apply that rule → Generate grid
+   - Hypothesis 2: "What if the rule is [different approach]?" → Apply that rule → Generate grid
+   - Hypothesis 3: "What if the rule is [another approach]?" → Apply that rule → Generate grid
+   
+2. The verification system will tell you which hypothesis MATCHES the target output
+   
+3. The one that matches reveals the TRUE RULE - that's what you'll use on new inputs later
+
+🔑 EXAMPLES OF GOOD vs BAD HYPOTHESES:
+❌ BAD: "Hypothesis: Copy input then modify a few cells" (lazy, not a rule)
+❌ BAD: "Hypothesis: Place the exact values I see in the output" (just memorizing)
+✅ GOOD: "Hypothesis: For each object in input, place a colored bar in snake order" (testing a rule)
+✅ GOOD: "Hypothesis: Connect all red cells using Manhattan distance nearest-neighbor" (testing a rule)
+✅ GOOD: "Hypothesis: Mirror the input horizontally then apply color transformation" (testing a rule)
+
+⚠️ CRITICAL RULE DISCOVERY PROCESS:
+Your hypotheses should describe TRANSFORMATION RULES, not copying strategies!
+- Bad approach: Start with input grid, make small edits
+- Good approach: Identify pattern (e.g., "connect objects", "fill regions", "apply symmetry"), then BUILD the output from scratch using that rule
+- The rule should be something you can EXPLAIN and APPLY to a completely different input later
+
+OUTPUT DIMENSIONS: {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])}
+Note: Infer output dimensions from the transformation rule, not by measuring the given output.
+
+START NOW - Generate 3-5 hypotheticals, each testing a different transformation rule!
+⚠️ Build output grids from scratch using transformation rules, don't start by copying the input!
 """
 
         response_1 = self.call_ai_with_image(prompt_1, [input_img_1, output_img_1])
@@ -892,7 +991,10 @@ Now apply the pattern you learned from the first example to this NEW input.
 Second training input ({len(task['train'][1]['input'][0])}x{len(task['train'][1]['input'])} - width x height):
 {self.format_grid(task['train'][1]['input'])}
 
-CRITICAL: Your output MUST have dimensions {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} (same as first example's output).
+CRITICAL DIMENSION GUIDANCE:
+- First example: Input {len(task['train'][0]['input'][0])}x{len(task['train'][0]['input'])} -> Output {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])}
+- This input: {len(task['train'][1]['input'][0])}x{len(task['train'][1]['input'])}
+- Infer the correct output dimensions from the pattern.
 
 APPLY THE LEARNED PATTERN:
 
@@ -905,9 +1007,13 @@ STEP 2: APPLY TO NEW INPUT
 For each step of applying the transformation:
    
    A. GENERATE HYPOTHETICALS (3-5 variations):
+      - ⚠️ CRITICAL: ALL hypotheticals in this batch must use the SAME output dimensions
+      - ⚠️ CRITICAL: Each hypothetical must be MEANINGFULLY DIFFERENT, not trivial variations
+      - Infer the output size first, then test content variations
       - Apply the learned rule to this new input
-      - Test slight variations in how to interpret the rule
-      - Show different ways to apply the same core pattern
+      - Test significantly different interpretations (e.g., different traversal orders, different coloring rules, different connection patterns)
+      - Show genuinely distinct approaches to applying the core pattern
+      - Avoid minor tweaks like "same but shift 1 pixel" - aim for conceptually different applications
       - Use type='hypothetical' for each variation
    
    B. CHOOSE BEST APPLICATION:
@@ -996,37 +1102,489 @@ Continue iterating until the tool generates the correct outputs in both training
 
             response_3 = self.call_ai_with_image(prompt_3, [output_img_2])
             num_phases += 1
+            
+            # Check if training example 2 was solved correctly - if so, add to correct rules
+            if verification_results:
+                best_overall_diff = min([diff for _, (_, _, diff) in verification_results])
+                if best_overall_diff == 0:
+                    print("  ✅ Training example 2 solved perfectly! Adding rule to correct_rules stack.")
+                    # Extract the rule/pattern from conversation (simplified - gets recent reasoning)
+                    self.correct_rules.append({
+                        'example': 2,
+                        'rule': 'Successfully applied transformation rule to training example 2',
+                        'status': 'correct'
+                    })
         
-        # If there are more training examples, show them
+        # If there are more training examples (3+), use NO real-time verification strategy
         for i in range(2, len(task['train'])):
             print(f"\n" + "="*80)
-            print(f"=== Additional training example {i+1} ===")
+            
+            # Check if we found a perfect rule earlier - if so, use validation mode
+            if self.perfect_rule_found:
+                print(f"=== RULE VALIDATION: Testing perfect rule on training example {i+1} ===")
+                # Track that this example is being attempted in validation mode
+                if i not in self.validation_attempted_examples:
+                    self.validation_attempted_examples.append(i)
+            else:
+                print(f"=== Additional training example {i+1} - apply learned rules (NO real-time verification) ===")
             print("="*80)
             
+            self.current_phase = 4  # Set to 4 to DISABLE real-time verification
             self.current_training_example = i
-            self.current_expected_output = task['train'][i]['output']  # Set for verification
+            self.current_expected_output = task['train'][i]['output']  # Set for post-hoc verification
             self.accumulated_hypotheticals = []  # Reset for new phase
+            self.current_step_number = 1  # Reset step counter
+            self.last_transform_path = None  # Reset transform tracking
+            
             img = grid_to_image(task['train'][i]['input'], 30)
-            input_img = self.save_visualization(img, "input")
+            input_img = self.save_visualization(img, "input", visualization_type="transform")
+            
+            # Build prompt based on whether we have a perfect rule to validate
+            if self.perfect_rule_found:
+                # Validation mode: Just apply the perfect rule (with retry context if applicable)
+                retry_context = ""
+                if self.perfect_rule_validation_failures > 0:
+                    retry_context = f"""
+⚠️ RETRY ATTEMPT {self.perfect_rule_validation_failures}/2:
+Your rule failed validation on the previous example. Refine your understanding:
+- What edge case or variation did you miss?
+- Does the rule need adjustment?
+- Are there conditions or exceptions?
+"""
+                
+                prompt_additional = f"""🎯 RULE VALIDATION MODE{retry_context}
+
+You found a PERFECT rule that worked on the previous training examples:
+  "{self.perfect_rule_description}"
+
+Now TEST and ADAPT this rule for training example {i+1} with different dimensions/layout.
+
+Training example {i+1} input ({len(task['train'][i]['input'][0])}x{len(task['train'][i]['input'])} - width x height):
+{self.format_grid(task['train'][i]['input'])}
+
+CRITICAL DIMENSION GUIDANCE:
+Previous examples showed this input→output pattern:
+{chr(10).join([f"  Example {j+1}: Input {len(task['train'][j]['input'][0])}x{len(task['train'][j]['input'])} → Output {len(task['train'][j]['output'][0])}x{len(task['train'][j]['output'])}" for j in range(i)])}
+
+This example: Input {len(task['train'][i]['input'][0])}x{len(task['train'][i]['input'])}
+
+Apply the same dimension pattern → Infer the output dimensions
+⚠️ ALL your hypotheticals MUST use the SAME inferred output dimensions!
+
+VALIDATION TASK - ADAPT THE RULE:
+🔑 KEY INSIGHT: Your perfect rule describes the CORE TRANSFORMATION, but you must ADAPT it to this new input size/layout.
+
+Your rule is the "what" (e.g., "connect centers in snake order"), but you must figure out the "how" for THIS specific input:
+- How many centers are there in THIS input?
+- What's the snake order for THIS layout?
+- What corridors exist in THIS grid?
+- How does the output size change for THIS input?
+
+APPROACH:
+1. Analyze this new input structure (different from training 1-2)
+2. Identify how your rule's PRINCIPLE applies here (same transformation type, different specifics)
+3. Generate 3-5 hypotheticals testing different ADAPTATIONS of your rule{' (with refinements based on previous feedback)' if self.perfect_rule_validation_failures > 0 else ''}:
+   - ⚠️ CRITICAL: Each hypothetical must be MEANINGFULLY DIFFERENT adaptation
+   - ⚠️ CRITICAL: ALL hypotheticals must use the SAME output dimensions
+   - Test: How does the rule scale to different grid sizes?
+   - Test: How does the rule handle different numbers of objects?
+   - Test: How does the rule adapt to different spatial layouts?
+4. Pick the best adaptation and create a 'transform'
+
+⚠️ Don't just blindly copy the exact same output pattern - ADAPT the rule to this input's structure!
+
+Apply your rule's principle with appropriate adaptations now.
+"""
+            else:
+                # Normal mode: Apply learned rules
+                # Build summary of correct rules from previous examples
+                rules_summary = ""
+                if self.correct_rules:
+                    rules_summary = "\n📚 CORRECT RULES FROM PREVIOUS EXAMPLES:\n"
+                    for rule_info in self.correct_rules:
+                        rules_summary += f"  ✅ Example {rule_info['example']}: {rule_info['rule']}\n"
+                    rules_summary += "\nUse these validated rules to solve this example.\n"
+                
+                prompt_additional = f"""Now apply your learned rules to training example {i+1}.
+
+⚠️ IMPORTANT: NO real-time verification available. Apply your rules confidently based on what you've learned.
+{rules_summary}
+
+Training example {i+1} input ({len(task['train'][i]['input'][0])}x{len(task['train'][i]['input'])} - width x height):
+{self.format_grid(task['train'][i]['input'])}
+
+CRITICAL DIMENSION GUIDANCE:
+Previous examples showed this input→output pattern:
+{chr(10).join([f"  Example {j+1}: Input {len(task['train'][j]['input'][0])}x{len(task['train'][j]['input'])} → Output {len(task['train'][j]['output'][0])}x{len(task['train'][j]['output'])}" for j in range(i)])}
+
+This example: Input {len(task['train'][i]['input'][0])}x{len(task['train'][i]['input'])}
+Apply the same dimension pattern: Output should be ___x___ (you must infer from pattern above)
+
+⚠️ ALL your hypotheticals MUST use these same output dimensions!
+
+APPLY YOUR LEARNED RULES:
+
+STEP 1: RECALL THE VALIDATED RULES
+- What transformation rules have you confirmed work?
+- How have they applied consistently across examples 1 and 2?
+
+STEP 2: APPLY CONFIDENTLY (NO VERIFICATION AVAILABLE)
+   - ⚠️ CRITICAL: ALL hypotheticals must use the SAME output dimensions
+   - ⚠️ CRITICAL: Make each hypothetical MEANINGFULLY DIFFERENT (not just minor tweaks)
+   - Infer the output size from the pattern, commit to it for all hypotheticals
+   - Generate hypotheticals exploring genuinely different ways your rules could apply
+   - Test distinct interpretations: different orderings, different coloring schemes, different connection strategies
+   - Avoid trivial variations - each hypothesis should represent a conceptually different approach
+   - Use type='hypothetical' for variations
+   - Pick the best application and create a 'transform'
+   - No feedback will be given until you complete your prediction
+
+STEP 3: BUILD YOUR FINAL OUTPUT
+- Apply transformation step by step
+- Trust your learned rules
+- Show your complete reasoning process
+
+START NOW: Apply your validated transformation rules to this example (no real-time verification).
+"""
+
+            response_additional = self.call_ai_with_image(prompt_additional, [input_img])
+            num_phases += 1
+            
+            # Post-hoc verification (silent during generation, now revealed)
+            print(f"\n" + "="*80)
+            print(f"=== Reveal & Reflect: Training example {i+1} ===")
+            print("="*80)
+            
+            self.current_phase = 3  # Post-hoc feedback phase
             img = grid_to_image(task['train'][i]['output'], 30)
             output_img = self.save_visualization(img, "output", is_actual_output=True)
             
-            prompt = f"""Here's training example {i+1}:
+            # Calculate post-hoc scores for all hypotheticals
+            training_dir = os.path.join(self.visualizations_dir, self.current_task_name, f"training_{self.current_training_example + 1}")
+            
+            verification_results = []
+            all_items = os.listdir(training_dir)
+            best_overall_diff = float('inf')
+            
+            # Find all unique step numbers that have hypotheticals
+            step_numbers = set()
+            for filename in all_items:
+                if filename.endswith('_hypothetical.png'):
+                    step_num = int(filename.split('_')[0])
+                    step_numbers.add(step_num)
+            
+            # Verify hypotheticals for each step (post-hoc)
+            for step_num in sorted(step_numbers):
+                result = self.find_best_hypothetical(training_dir, task['train'][i]['output'], step_num)
+                if result:
+                    verification_results.append((step_num, result))
+                    best_grid, best_desc, diff = result
+                    if diff < best_overall_diff:
+                        best_overall_diff = diff
+            
+            # Build verification feedback
+            verification_feedback = ""
+            if verification_results:
+                verification_feedback = "\n\n📊 POST-HOC VERIFICATION RESULTS:\n"
+                
+                # Different feedback for validation mode vs normal mode
+                if self.perfect_rule_found:
+                    verification_feedback += f"Testing your perfect rule on example {i+1}:\n\n"
+                else:
+                    verification_feedback += f"I've compared your hypotheticals for example {i+1} to the actual output:\n\n"
+                
+                for step_num, (best_grid, best_desc, diff) in verification_results:
+                    if diff == 0:
+                        verification_feedback += f"  ✅ Step {step_num}: PERFECT match! ({best_desc[:50]})\n"
+                    elif diff < 10:
+                        verification_feedback += f"  ⭐ Step {step_num}: Very close! Only {diff} cells different. ({best_desc[:50]})\n"
+                    else:
+                        verification_feedback += f"  ❌ Step {step_num}: {diff} cells off. ({best_desc[:50]})\n"
+                
+                if best_overall_diff == 0:
+                    if self.perfect_rule_found:
+                        verification_feedback += f"\n🎉 VALIDATION SUCCESS! Your perfect rule works on example {i+1}!"
+                        verification_feedback += f"\n✨ This confirms your rule generalizes across all training examples."
+                        verification_feedback += f"\n🚀 High confidence for the test case!"
+                        # Reset failure counter on success
+                        self.perfect_rule_validation_failures = 0
+                    else:
+                        verification_feedback += f"\n🎯 SUCCESS! You got example {i+1} correct using your learned rules!"
+                        verification_feedback += f"\n✅ This confirms your transformation rule is correct."
+                else:
+                    if self.perfect_rule_found:
+                        self.perfect_rule_validation_failures += 1
+                        max_retries = 2
+                        
+                        if self.perfect_rule_validation_failures <= max_retries:
+                            verification_feedback += f"\n⚠️ VALIDATION ATTEMPT {self.perfect_rule_validation_failures} FAILED! Your rule was off by {best_overall_diff} cells on example {i+1}."
+                            verification_feedback += f"\n� RETRY: You have {max_retries - self.perfect_rule_validation_failures + 1} more attempt(s) to refine your rule."
+                            verification_feedback += f"\n🔍 Reflect: What's different about this example?"
+                            verification_feedback += f"\n� Consider: Maybe the rule needs adjustment or has edge cases."
+                            # Keep the perfect_rule_found flag for retry
+                        else:
+                            verification_feedback += f"\n❌ VALIDATION FAILED AFTER {max_retries} RETRIES! Your rule was off by {best_overall_diff} cells on example {i+1}."
+                            verification_feedback += f"\n🔍 Your 'perfect' rule doesn't generalize - it's overfitted to early examples."
+                            verification_feedback += f"\n💭 Saving this rule as a failed hypothesis, will switch to exploratory mode."
+                            
+                            # Save the failed perfect rule to the stack for future reference
+                            print(f"  📝 Saving failed perfect rule to correct_rules stack for reference")
+                            self.correct_rules.append({
+                                'example': f"1-{i}",  # Range where it was tested
+                                'rule': f"FAILED VALIDATION: {self.perfect_rule_description}",
+                                'status': 'failed_validation',
+                                'validation_failures': self.perfect_rule_validation_failures,
+                                'diff': best_overall_diff
+                            })
+                            
+                            # Clear the perfect rule flag after max retries
+                            failed_rule_desc = self.perfect_rule_description  # Save for potential re-processing
+                            self.perfect_rule_found = False
+                            self.perfect_rule_description = None
+                            self.perfect_rule_validation_failures = 0
+                    else:
+                        verification_feedback += f"\n⚠️ Your prediction was off by {best_overall_diff} cells."
+                        verification_feedback += f"\n🔍 Reflect on what's different about this example."
+            
+            # Determine if this example was solved correctly
+            success = best_overall_diff == 0
+            
+            # Build prompt based on validation mode vs normal mode
+            if self.perfect_rule_found and success:
+                status_msg = "🎉 VALIDATION SUCCESSFUL! Your perfect rule generalizes to this example."
+                continue_msg = "Your rule is validated across multiple examples. Continue to test on remaining examples."
+            elif self.perfect_rule_found and not success:
+                if self.perfect_rule_validation_failures <= 2:
+                    status_msg = f"⚠️ VALIDATION ATTEMPT {self.perfect_rule_validation_failures} FAILED - But you can retry!"
+                    continue_msg = f"""Your rule needs refinement. Attempt {self.perfect_rule_validation_failures}/2:
+- What's different about this example?
+- What edge cases did you miss?
+- How should you adjust the rule?
 
-Input:
-{self.format_grid(task['train'][i]['input'])}
+🔄 TRY AGAIN with refined understanding. Same validation mode."""
+                else:
+                    status_msg = "❌ VALIDATION FAILED AFTER RETRIES! Switching to exploratory mode."
+                    continue_msg = """Your early rule was overfitted. Major rethink needed:
+- What fundamentally did you miss?
+- Is there a completely different pattern?
+- Should you start fresh with a new hypothesis?
 
-Output:
+Continue exploring freely."""
+            elif success:
+                status_msg = "🎉 CORRECT! Your rules work on this example."
+                continue_msg = "Continue building confidence - your rules are working consistently."
+            else:
+                status_msg = "❌ INCORRECT. Reflect on what you missed:"
+                continue_msg = """What did you miss or misunderstand?
+- Is there an edge case you didn't account for?
+- Did you misapply the rule?
+- Is there a subtle variation you overlooked?
+
+Refine your understanding and describe what you learned from this mistake."""
+            
+            prompt_reveal = f"""Here's the actual output for training example {i+1}:
+
+Output grid:
 {self.format_grid(task['train'][i]['output'])}
+{verification_feedback}
+
+{status_msg}
+
+{continue_msg}
 """
 
-            response = self.call_ai_with_image(prompt, [input_img, output_img])
+            response_reveal = self.call_ai_with_image(prompt_reveal, [output_img])
             num_phases += 1
+            
+            # Add to correct rules if successful, or note the failure
+            if success:
+                print(f"  ✅ Training example {i+1} solved perfectly! Adding to correct_rules stack.")
+                self.correct_rules.append({
+                    'example': i+1,
+                    'rule': f'Successfully applied transformation rule to training example {i+1}',
+                    'status': 'correct'
+                })
+            else:
+                print(f"  ⚠️ Training example {i+1} not solved. Reflection captured for next attempt.")
+                self.correct_rules.append({
+                    'example': i+1,
+                    'rule': f'Failed on training example {i+1} - needs refinement',
+                    'status': 'failed',
+                    'diff': best_overall_diff
+                })
+            
+            # Check if we just switched out of validation mode (perfect rule failed completely)
+            # If so, we need to re-process the validation-attempted examples in exploratory mode
+            if not self.perfect_rule_found and len(self.validation_attempted_examples) > 0:
+                print(f"\n🔄 SWITCHING TO EXPLORATORY MODE - Re-processing examples that were attempted in validation mode")
+                examples_to_reprocess = list(self.validation_attempted_examples)
+                self.validation_attempted_examples = []  # Clear the list
+                
+                for reprocess_i in examples_to_reprocess:
+                    print(f"\n" + "="*80)
+                    print(f"=== EXPLORATORY MODE: Training example {reprocess_i+1} (re-processing after failed validation) ===")
+                    print("="*80)
+                    
+                    # Reset state for this example
+                    self.current_phase = 4  # NO real-time verification
+                    self.current_training_example = reprocess_i
+                    self.current_expected_output = task['train'][reprocess_i]['output']
+                    self.accumulated_hypotheticals = []
+                    self.current_step_number = 1
+                    self.last_transform_path = None
+                    
+                    # Re-create input image
+                    img = grid_to_image(task['train'][reprocess_i]['input'], 30)
+                    input_img = self.save_visualization(img, "input", visualization_type="transform")
+                    
+                    # Build exploratory prompt with context about failed rule
+                    rules_summary = ""
+                    if self.correct_rules:
+                        rules_summary = "\n📚 LEARNED FROM PREVIOUS ATTEMPTS:\n"
+                        for rule_info in self.correct_rules:
+                            if rule_info['status'] == 'failed_validation':
+                                rules_summary += f"  ❌ FAILED RULE: {rule_info['rule']}\n"
+                            elif rule_info['status'] == 'correct':
+                                rules_summary += f"  ✅ Example {rule_info['example']}: {rule_info['rule']}\n"
+                            elif rule_info['status'] == 'failed':
+                                rules_summary += f"  ⚠️ Example {rule_info['example']}: {rule_info['rule']}\n"
+                        rules_summary += "\n"
+                    
+                    prompt_reprocess = f"""Now explore this training example with a fresh perspective.
+
+⚠️ CONTEXT: Your previous "perfect" rule failed validation. Try completely different approaches.
+{rules_summary}
+
+Training example {reprocess_i+1} input ({len(task['train'][reprocess_i]['input'][0])}x{len(task['train'][reprocess_i]['input'])} - width x height):
+{self.format_grid(task['train'][reprocess_i]['input'])}
+
+CRITICAL DIMENSION GUIDANCE:
+- Previous training outputs were: {', '.join([f"{len(task['train'][j]['output'][0])}x{len(task['train'][j]['output'])}" for j in range(reprocess_i)])}
+- Previous training inputs were: {', '.join([f"{len(task['train'][j]['input'][0])}x{len(task['train'][j]['input'])}" for j in range(reprocess_i)])}
+- This input is: {len(task['train'][reprocess_i]['input'][0])}x{len(task['train'][reprocess_i]['input'])}
+- Infer the output dimensions from the pattern.
+
+EXPLORATORY APPROACH:
+
+STEP 1: FORGET THE FAILED RULE
+- What other patterns could explain the transformations?
+- What did the failed rule miss or misinterpret?
+- Look for completely different transformation principles
+
+STEP 2: GENERATE DIVERSE HYPOTHETICALS (3-5 variations)
+   - ⚠️ CRITICAL: ALL hypotheticals must use the SAME output dimensions
+   - ⚠️ CRITICAL: Make each hypothetical MEANINGFULLY DIFFERENT (not just minor tweaks)
+   - Try fundamentally different transformation rules
+   - Test alternative interpretations of the pattern
+   - Use type='hypothetical' for each variation
+
+STEP 3: COMMIT TO BEST APPROACH
+   - Pick the transformation that seems most consistent
+   - Create ONE 'transform' visualization
+   - Use type='transform' for your chosen approach
+   - Explain your reasoning
+
+START NOW: Explore this example with fresh eyes and diverse hypotheses.
+"""
+
+                    response_reprocess = self.call_ai_with_image(prompt_reprocess, [input_img])
+                    num_phases += 1
+                    
+                    # Post-hoc reveal for re-processed example
+                    print(f"\n" + "="*80)
+                    print(f"=== Reveal & Reflect: Training example {reprocess_i+1} (re-processed) ===")
+                    print("="*80)
+                    
+                    self.current_phase = 3
+                    img = grid_to_image(task['train'][reprocess_i]['output'], 30)
+                    output_img = self.save_visualization(img, "output", is_actual_output=True)
+                    
+                    # Calculate post-hoc scores
+                    training_dir = os.path.join(self.visualizations_dir, self.current_task_name, f"training_{self.current_training_example + 1}")
+                    
+                    verification_results = []
+                    all_items = os.listdir(training_dir)
+                    best_overall_diff = float('inf')
+                    
+                    step_numbers = set()
+                    for filename in all_items:
+                        if filename.endswith('_hypothetical.png'):
+                            step_num = int(filename.split('_')[0])
+                            step_numbers.add(step_num)
+                    
+                    for step_num in sorted(step_numbers):
+                        result = self.find_best_hypothetical(training_dir, task['train'][reprocess_i]['output'], step_num)
+                        if result:
+                            verification_results.append((step_num, result))
+                            best_grid, best_desc, diff = result
+                            if diff < best_overall_diff:
+                                best_overall_diff = diff
+                    
+                    # Build verification feedback for re-processed example
+                    verification_feedback = ""
+                    if verification_results:
+                        verification_feedback = "\n\n📊 POST-HOC VERIFICATION RESULTS (Exploratory Mode):\n"
+                        verification_feedback += f"I've compared your new hypotheticals for example {reprocess_i+1}:\n\n"
+                        
+                        for step_num, (best_grid, best_desc, diff) in verification_results:
+                            if diff == 0:
+                                verification_feedback += f"  ✅ Step {step_num}: PERFECT match! ({best_desc[:50]})\n"
+                            elif diff < 10:
+                                verification_feedback += f"  ⭐ Step {step_num}: Very close! Only {diff} cells different. ({best_desc[:50]})\n"
+                            else:
+                                verification_feedback += f"  ❌ Step {step_num}: {diff} cells off. ({best_desc[:50]})\n"
+                        
+                        if best_overall_diff == 0:
+                            verification_feedback += f"\n🎯 SUCCESS! Your exploratory approach found the correct solution!"
+                        else:
+                            verification_feedback += f"\n⚠️ Still {best_overall_diff} cells off. Continue refining your understanding."
+                    
+                    reprocess_success = best_overall_diff == 0
+                    
+                    if reprocess_success:
+                        status_msg = "🎉 CORRECT! Your exploratory approach worked."
+                        continue_msg = "This new understanding is more accurate than the failed rule."
+                    else:
+                        status_msg = "⚠️ Still not perfect, but we're learning."
+                        continue_msg = "Continue building understanding from multiple failed attempts."
+                    
+                    prompt_reveal_reprocess = f"""Here's the actual output for training example {reprocess_i+1}:
+
+Output grid:
+{self.format_grid(task['train'][reprocess_i]['output'])}
+{verification_feedback}
+
+{status_msg}
+
+{continue_msg}
+"""
+
+                    response_reveal_reprocess = self.call_ai_with_image(prompt_reveal_reprocess, [output_img])
+                    num_phases += 1
+                    
+                    # Update correct rules stack
+                    if reprocess_success:
+                        print(f"  ✅ Training example {reprocess_i+1} solved with exploratory approach!")
+                        self.correct_rules.append({
+                            'example': reprocess_i+1,
+                            'rule': f'Successfully solved training example {reprocess_i+1} after validation failure',
+                            'status': 'correct_after_exploration'
+                        })
+                    else:
+                        print(f"  ⚠️ Training example {reprocess_i+1} still not solved in exploratory mode.")
+                
+                # After re-processing, continue with any remaining examples in normal mode
+                # (The loop will continue from where it left off)
         
         # Phase 4: Test input - ask for output
         print("\n" + "="*80)
         print("=== Phase 4: Test input - generate output ===")
         print("="*80)
+        
+        # Clear perfect rule validation mode before test (validation only for training examples)
+        if self.perfect_rule_found:
+            print("  ✨ Perfect rule was validated on training examples - will apply to test with confidence")
+            self.perfect_rule_found = False  # Don't use validation mode for test
         
         self.current_phase = 4  # Track phase - NO VERIFICATION (matches deployment)
         # Increment to final training example + 1 for test case
@@ -1042,14 +1600,39 @@ Output:
         test_output_img = self.save_visualization(img, "output", is_actual_output=True)
         print(f"  Test output image saved to: {test_output_img}")
         
+        # Build summary of validated rules
+        rules_summary = ""
+        
+        # If we had a perfect rule that was validated, mention it with confidence
+        if self.perfect_rule_description:
+            rules_summary = f"\n🎯 VALIDATED PERFECT RULE:\n"
+            rules_summary += f'   "{self.perfect_rule_description}"\n'
+            rules_summary += f"   This rule was validated across multiple training examples with perfect accuracy.\n\n"
+        
+        if self.correct_rules:
+            correct_count = sum(1 for r in self.correct_rules if r['status'] == 'correct')
+            rules_summary += f"📚 TRAINING RESULTS FROM {len(task['train'])} EXAMPLES:\n"
+            rules_summary += f"   ✅ {correct_count} examples solved correctly\n"
+            for rule_info in self.correct_rules:
+                if rule_info['status'] == 'correct':
+                    rules_summary += f"   ✅ Example {rule_info['example']}: Rule validated\n"
+                else:
+                    rules_summary += f"   ⚠️ Example {rule_info['example']}: Had issues (diff: {rule_info.get('diff', '?')})\n"
+            rules_summary += "\nApply your validated transformation rule confidently.\n"
+        
         prompt_test = f"""This is the TEST. Apply the transformation rule you learned from the training examples.
+{rules_summary}
 
 🎯 FINAL APPLICATION: You've learned the pattern from 2+ training examples. Now apply it confidently to this test input.
 
 Test input ({len(task['test'][0]['input'][0])}x{len(task['test'][0]['input'])} - width x height):
 {self.format_grid(task['test'][0]['input'])}
 
-CRITICAL: Output dimensions MUST be {len(task['train'][0]['output'][0])}x{len(task['train'][0]['output'])} (width x height).
+CRITICAL DIMENSION INFERENCE:
+- Training example outputs were: {', '.join([f"{len(t['output'][0])}x{len(t['output'])}" for t in task['train']])}
+- Training example inputs were: {', '.join([f"{len(t['input'][0])}x{len(t['input'])}" for t in task['train']])}
+- Test input is: {len(task['test'][0]['input'][0])}x{len(task['test'][0]['input'])}
+- You must INFER the correct test output dimensions from the pattern you learned.
 
 SOLVE WITH CONFIDENCE:
 
@@ -1062,9 +1645,14 @@ STEP 2: APPLY TO TEST INPUT
 For each step of the transformation:
    
    A. GENERATE HYPOTHETICALS (3-5 applications):
+      - ⚠️ CRITICAL: ALL hypotheticals in this batch must use the SAME output dimensions
+      - ⚠️ CRITICAL: Each hypothetical must be MEANINGFULLY DIFFERENT, not cosmetic changes
+      - Infer the test output dimensions from training examples, commit to ONE size
       - Apply your learned rule to this test input
-      - Show the transformation working step by step
-      - Test slight variations if there's ambiguity
+      - Show the transformation working step by step with genuinely different approaches
+      - Test substantially different interpretations: different traversal patterns, different application orders, different edge case handling
+      - Each hypothesis should explore a distinct way the rule could work
+      - Avoid near-duplicates or trivial parameter tweaks
       - Use type='hypothetical' for each variation
       - Explain your reasoning for each
    
