@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ensemble Comparison - 00d62c1b</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        .booklet { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .booklet h3 { margin-top: 0; color: #0066cc; }
+        .steps { background: #f5f5f5; padding: 10px; border-radius: 3px; }
+        .success { color: green; }
+        .fail { color: red; }
+        .common-steps { background: #e6f3ff; padding: 15px; margin: 20px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Ensemble Booklet Comparison</h1>
+    <p><strong>Task:</strong> 00d62c1b</p>
+    <p><strong>Total Booklets:</strong> 4</p>
+    <p><strong>Generated:</strong> 2025-10-27T18:03:53.640920</p>
+    
+    <div class="common-steps">
+        <h2>Common Steps (0 found)</h2>
+        <ol>
+        </ol>
+    </div>
+    
+    <h2>Individual Booklets</h2>
+    <div class="booklet">
+        <h3>Example 1 - <span class="success">Success</span></h3>
+        <p><strong>Path:</strong> example_1_booklet</p>
+        <p><strong>Steps:</strong> 3 | <strong>Reached Target:</strong> 1</p>
+        <div class="steps">
+            <ol>
+                <li>1. Fill the empty cell that is orthogonally surrounded by the four green (3) cells at positions (1,2), (2,1), (2,3), (3,2) with color 4.</li>
+                <li>2. Fill the empty cell that is orthogonally surrounded by the four green (3) cells at positions (2,3), (3,2), (3,4), (4,3) with color 4.</li>
+                <li>3. Do not change any other cells (leave all existing green (3) cells and the black background (0) unchanged).</li>
+            </ol>
+        </div>
+    </div>
+    <div class="booklet">
+        <h3>Example 2 - <span class="success">Success</span></h3>
+        <p><strong>Path:</strong> example_2_booklet</p>
+        <p><strong>Steps:</strong> 3 | <strong>Reached Target:</strong> 1</p>
+        <div class="steps">
+            <ol>
+                <li>1. Locate the single black cell that is orthogonally surrounded by green pixels — specifically the empty cell that has green pixels at its up, down, left and right neighbors (the cell between the greens at (3,6), (5,6), (4,5) and (4,7)).</li>
+                <li>2. Fill that single black cell with color 4 (set the cell at row 4, column 6 (0-indexed) from 0 to 4).</li>
+                <li>3. Leave every other pixel unchanged (do not modify any other color-3 green pixels or any background pixels).</li>
+            </ol>
+        </div>
+    </div>
+    <div class="booklet">
+        <h3>Example 3 - <span class="fail">Failed</span></h3>
+        <p><strong>Path:</strong> example_3_booklet</p>
+        <p><strong>Steps:</strong> 3 | <strong>Reached Target:</strong> 0</p>
+        <div class="steps">
+            <ol>
+                <li>1. Color the four empty cells that form the left column of the ring’s interior with color 4 — specifically cells at (row 3, col 4), (row 4, col 4), (row 5, col 4), (row 6, col 4).</li>
+                <li>2. Color the four empty cells that form the right column of the ring’s interior with color 4 — specifically cells at (row 3, col 5), (row 4, col 5), (row 5, col 5), (row 6, col 5).</li>
+                <li>3. Color the single remaining empty cell inside the ring to the right of the top interior row with color 4 — cell (row 3, col 7).</li>
+            </ol>
+        </div>
+    </div>
+    <div class="booklet">
+        <h3>Example 4 - <span class="fail">Failed</span></h3>
+        <p><strong>Path:</strong> example_4_booklet</p>
+        <p><strong>Steps:</strong> 3 | <strong>Reached Target:</strong> 0</p>
+        <div class="steps">
+            <ol>
+                <li>1. Fill the 2×2 empty hole inside the upper-left hollow 4×4 square (the inner hole of the top big square) with color 4 — color its four interior cells yellow.</li>
+                <li>2. Complete the lower-left foot: the small L-shaped trio of green pixels attached beneath/left of the lower hollow square has one empty cell that would make a full 2×2 block — color that single empty cell yellow (color 4).</li>
+                <li>3. Complete the lower-right foot: the small foot cluster at the extreme lower-right is missing one cell to become a 2×2 block — color that single empty cell yellow (color 4).</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

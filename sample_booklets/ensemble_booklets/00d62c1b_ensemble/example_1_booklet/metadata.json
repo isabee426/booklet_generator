@@ -1,0 +1,46 @@
+{
+  "task_name": "temp_task_ex1",
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Fill the empty cell that is orthogonally surrounded by the four green (3) cells at positions (1,2), (2,1), (2,3), (3,2) with color 4.",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T17:36:08.331315"
+    },
+    {
+      "step_number": 1,
+      "description": "2. Fill the empty cell that is orthogonally surrounded by the four green (3) cells at positions (2,3), (3,2), (3,4), (4,3) with color 4.",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T17:36:19.100383"
+    },
+    {
+      "step_number": 2,
+      "description": "3. Do not change any other cells (leave all existing green (3) cells and the black background (0) unchanged).",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "tries": 2,
+      "reached_target": true,
+      "timestamp": "2025-10-27T17:36:30.549416"
+    }
+  ],
+  "total_steps": 3,
+  "generated_at": "2025-10-27T17:37:03.357800"
+}

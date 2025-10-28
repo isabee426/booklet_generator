@@ -1,0 +1,51 @@
+{
+  "task_name": "00d62c1b",
+  "example_number": 4,
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Change the color of every black pixel that belongs to a contiguous black region (orthogonally connected up/down/left/right) that does not touch the image border to solid yellow, filling the entire region exactly.",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": [
+        10,
+        10
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 1,
+      "description": "2. Do not alter any green pixels (preserve their color and positions).",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": [
+        10,
+        10
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 2,
+      "description": "3. Leave all remaining black pixels \u2014 those that touch the image border or are isolated background dots \u2014 unchanged.",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": [
+        10,
+        10
+      ],
+      "reached_target": false,
+      "tries": 1
+    }
+  ],
+  "total_steps": 3,
+  "success": false,
+  "generated_at": "2025-10-28T11:05:47.626726"
+}

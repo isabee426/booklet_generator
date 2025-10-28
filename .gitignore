@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Temporary images
+img_tmp/
+
+# Virtual environments
+arc-solver-env/
+arc-venv/
+
+# Generated booklets (keep structure but can regenerate)
+# batch_visual_booklets/
+# sample_booklets/
+# refined_booklets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+

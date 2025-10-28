@@ -1,0 +1,65 @@
+{
+  "task_name": "00d62c1b",
+  "example_number": 1,
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Locate the first connected black region that is completely enclosed by green pixels (i.e., a black pocket not connected to the image border) scanning from the top row down and left to right, and recolor every pixel of that region to yellow.",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 1,
+      "description": "2. Locate the second connected black region that is completely enclosed by green (the next enclosed pocket in the same top-to-bottom, left-to-right scan) and recolor every pixel of that region to yellow.",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 2,
+      "description": "3. Locate the third connected black region that is completely enclosed by green (the next enclosed pocket in the scan order) and recolor every pixel of that region to yellow.",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 3,
+      "description": "4. Locate the fourth connected black region that is completely enclosed by green (the next enclosed pocket in the scan order) and recolor every pixel of that region to yellow.",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    }
+  ],
+  "total_steps": 4,
+  "success": false,
+  "generated_at": "2025-10-28T11:56:27.486317"
+}

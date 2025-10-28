@@ -1,0 +1,93 @@
+{
+  "task_name": "00d62c1b",
+  "example_number": 1,
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Locate the first contiguous patch of black (0) pixels that is completely surrounded on all sides by green (3) and fill that entire black patch with yellow (4).",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 1,
+      "description": "2. Locate the second contiguous patch of black (0) pixels that is completely surrounded on all sides by green (3) and fill that entire black patch with yellow (4).",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": true,
+      "tries": 1
+    },
+    {
+      "step_number": 2,
+      "description": "3. Locate the third contiguous patch of black (0) pixels that is completely surrounded on all sides by green (3) and fill that entire black patch with yellow (4).",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 3,
+      "description": "4. Locate the fourth contiguous patch of black (0) pixels that is completely surrounded on all sides by green (3) and fill that entire black patch with yellow (4).",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 4,
+      "description": "5. Locate the fifth contiguous patch of black (0) pixels that is completely surrounded on all sides by green (3) and fill that entire black patch with yellow (4).",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    },
+    {
+      "step_number": 5,
+      "description": "6. Locate the sixth contiguous patch of black (0) pixels that is completely surrounded on all sides by green (3) and fill that entire black patch with yellow (4).",
+      "grid_shape": [
+        6,
+        6
+      ],
+      "target_shape": [
+        6,
+        6
+      ],
+      "reached_target": false,
+      "tries": 1
+    }
+  ],
+  "total_steps": 6,
+  "success": false,
+  "generated_at": "2025-10-28T12:21:48.679240"
+}

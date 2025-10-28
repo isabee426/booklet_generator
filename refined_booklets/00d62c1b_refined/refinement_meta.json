@@ -1,0 +1,76 @@
+{
+  "task_name": "00d62c1b",
+  "refinement_history": [
+    {
+      "example_number": 1,
+      "steps": [
+        "1. Fill the black cell in the 3rd row, 3rd column (zero-based coordinate [2,2]) with color 4 (yellow).",
+        "2. Fill the black cell in the 4th row, 4th column (zero-based coordinate [3,3]) with color 4 (yellow)."
+      ],
+      "action": "initial_generation",
+      "success": true
+    },
+    {
+      "example_number": 2,
+      "steps": [
+        "1. Locate every contiguous region of black cells that is completely enclosed by the green shape (i.e., the black region does not touch any edge of the image).",
+        "2. Fill every cell of each such enclosed black region with color 4 (yellow), leaving all other cells unchanged."
+      ],
+      "action": "refined_after_failure",
+      "success": false,
+      "verified_on_all": false
+    },
+    {
+      "example_number": 3,
+      "steps": [
+        "1. Locate every contiguous region of black cells using orthogonal (4\u2011neighbor) connectivity that is completely enclosed by the green shape \u2014 i.e., the black region does not have any 4\u2011connected path to the image border and every orthogonally adjacent cell on the outside of that region is green (color 2).",
+        "2. For each region found in step 1, fill every cell of that contiguous black region with yellow (color 4), leaving all other cells (including all green cells) unchanged."
+      ],
+      "action": "refined_after_failure",
+      "success": false,
+      "verified_on_all": false
+    },
+    {
+      "example_number": 4,
+      "steps": [
+        "1. Find every contiguous 4\u2011neighbour (orthogonal) region of background (black, color 0) whose cells do not touch the image border \u2014 i.e., there is no 4\u2011connected path of black cells from any cell of that region to the grid edge (these are the black \"holes\" enclosed inside the green shape).",
+        "2. For each enclosed black region found in step 1, fill exactly those black cells with yellow (color 4).",
+        "3. Do not change any other cells (all green cells stay color 2 and all other pixels remain as in the input)."
+      ],
+      "action": "refined_after_failure",
+      "success": false,
+      "verified_on_all": false
+    },
+    {
+      "example_number": 5,
+      "steps": [
+        "1. Find every contiguous 4\u2011neighbour region of background (black, color 0) that does NOT touch the image border (there is no 4\u2011connected path of black cells from that region to any grid edge). Treat each such region as an \"enclosed hole\".",
+        "2. For each enclosed hole, look at the non\u2011black (non\u20110) pixels that are 4\u2011adjacent to the hole's perimeter. If every such perimeter pixel is the same non\u2011black color (i.e., the hole is completely surrounded by a single colored object), fill exactly those black cells of the hole with yellow (color 4).",
+        "3. If an enclosed hole is adjacent to two or more different non\u2011black colors (not surrounded by a single object color), do not fill it \u2014 leave those black cells unchanged.",
+        "4. Leave every other pixel unchanged: preserve the original colors of the surrounding object(s) (green, red, etc.) and all background pixels that are not enclosed."
+      ],
+      "action": "refined_after_failure",
+      "success": false,
+      "verified_on_all": false
+    }
+  ],
+  "final_steps": [
+    "1. Find every contiguous 4\u2011neighbour region of background (black, color 0) that does NOT touch the image border (there is no 4\u2011connected path of black cells from that region to any grid edge). Treat each such region as an \"enclosed hole\".",
+    "2. For each enclosed hole, look at the non\u2011black (non\u20110) pixels that are 4\u2011adjacent to the hole's perimeter. If every such perimeter pixel is the same non\u2011black color (i.e., the hole is completely surrounded by a single colored object), fill exactly those black cells of the hole with yellow (color 4).",
+    "3. If an enclosed hole is adjacent to two or more different non\u2011black colors (not surrounded by a single object color), do not fill it \u2014 leave those black cells unchanged.",
+    "4. Leave every other pixel unchanged: preserve the original colors of the surrounding object(s) (green, red, etc.) and all background pixels that are not enclosed."
+  ],
+  "total_training_examples": 5,
+  "total_refinements": 4,
+  "successful_training_tests": 1,
+  "test_results": [
+    {
+      "test_number": 1,
+      "attempts": 3,
+      "success": false
+    }
+  ],
+  "test_success_count": 0,
+  "total_test_cases": 1,
+  "generated_at": "2025-10-28T10:30:04.032556"
+}

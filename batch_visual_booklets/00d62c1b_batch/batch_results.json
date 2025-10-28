@@ -1,0 +1,283 @@
+{
+  "task_name": "00d62c1b",
+  "approach": "batch_visual_structured_reasoning",
+  "reasoning_analysis": "1. OBSERVATIONS\n- All inputs show irregular green shapes (solid outlines/paths and blobs) on a black background, with one or more black empty regions (holes) inside those green shapes.\n- Outputs are identical to inputs except that some of those black interior holes are filled with a solid yellow region.\n- External black background and isolated black pixels that are not enclosed by green remain black in the outputs.\n- The yellow fills exactly the contiguous interior region(s) (from a single pixel up to a large rectangular hole) and matches the hole shape and size.\n\n2. CONSTANTS (what is the same in every transformation)\n- The green shape and the black background are preserved; only interior holes change.\n- All and only black regions that are fully enclosed by green are colored yellow.\n- The fill color is always yellow and fills the whole enclosed contiguous region.\n- Non-enclosed black pixels (background or isolated dots) are left unchanged.\n\n3. VARIANTS (what differs between examples)\n- Number, size and location of enclosed holes vary (from single-pixel holes to large rectangular cavities).\n- Some examples have multiple enclosed holes; others have one.\n- The overall shape of the green object differs between examples.\n\n4. HYPOTHESIS (single transformation rule)\n- Fill every black region that is completely enclosed by green with solid yellow, leaving the green outline and all non-enclosed black pixels unchanged.\n\n5. VALIDATION (brief check per example)\n- Example 1: The small enclosed black region(s) inside the diagonal green cluster are turned yellow; background black pixels remain black \u2014 matches the rule.\n- Example 2: The single small black hole inside the green path is filled yellow while external black stays unchanged \u2014 matches the rule.\n- Example 3: The large rectangular cavity inside the green outline is entirely filled yellow; green border and outside remain unchanged \u2014 matches the rule.\n- Example 4: The two separate holes inside the green shape are each filled with yellow while other black pixels remain unchanged \u2014 matches the rule.\n- Example 5: All interior enclosed cavities (large center cavity and smaller enclosed spots) are filled yellow; scattered/background black pixels are unchanged \u2014 matches the rule.\n\nTherefore the transformation is: detect black regions that are enclosed by the green shape and fill each enclosed region completely with yellow.",
+  "universal_steps": [
+    "1. Copy the image and also keep the original pixel array frozen for all color comparisons (never read colors from the working/copy image while deciding connectivity). This prevents any temporary or final fill writes from changing connectivity tests. Decide the target fill color (yellow).",
+    "2. Robustly identify the background color \"bg\": examine all border pixels (top row, bottom row, left column, right column) and pick the most frequent color among them (mode) as bg. Treat every color that is not equal to this bg (within a small tolerance for numeric images) as a non\u2011background barrier (this includes the shape color and any preexisting fill colors).",
+    "3. Allocate a boolean visited[h][w] and a container for component coordinates. Iterate every pixel (r,c). When visited[r][c] is false AND original_pixel_color(r,c) equals bg, start a 4\u2011neighbor BFS/DFS. When you enqueue/push a pixel mark visited immediately (to avoid duplicates). Only traverse neighbors whose original color equals bg (and are not visited). Never traverse using diagonal neighbors. While exploring collect the component pixels and set touches_border = true if any pixel in the component has r==0 or r==h-1 or c==0 or c==w-1.",
+    "4. When the BFS/DFS completes: if touches_border is false (the component is fully enclosed) then set every collected pixel in the working copy to the target fill color; otherwise leave them as bg. Do not change any pixel whose original color was not bg.",
+    "5. Continue until all bg pixels are visited. Because all comparisons use the frozen original array and a separate visited map, previously filled pixels cannot be mistaken for bg during later traversals.",
+    "6. Implementation notes to avoid the errors seen in the failed cases: (a) use the border\u2011mode bg detection so you don\u2019t mis-sample a non\u2011bg corner; (b) treat any non\u2011bg color (including any existing fill color) as a barrier; (c) enforce 4\u2011connectivity and mark visited at enqueue time; (d) use a small color tolerance or alpha threshold if the images may contain near\u2011matches or anti\u2011aliasing."
+  ],
+  "training_examples": 5,
+  "training_success": 0,
+  "refinement_iterations": 3,
+  "booklets": [
+    {
+      "task_name": "00d62c1b",
+      "example_number": 1,
+      "steps": [
+        {
+          "step_number": 0,
+          "description": "1. Change the color of every black pixel that belongs to a contiguous black region (orthogonally connected up/down/left/right) that does not touch the image border to solid yellow, filling the entire region exactly.",
+          "grid_shape": [
+            6,
+            6
+          ],
+          "target_shape": [
+            6,
+            6
+          ],
+          "reached_target": true,
+          "tries": 1
+        },
+        {
+          "step_number": 1,
+          "description": "2. Do not alter any green pixels (preserve their color and positions).",
+          "grid_shape": [
+            6,
+            6
+          ],
+          "target_shape": [
+            6,
+            6
+          ],
+          "reached_target": true,
+          "tries": 1
+        },
+        {
+          "step_number": 2,
+          "description": "3. Leave all remaining black pixels \u2014 those that touch the image border or are isolated background dots \u2014 unchanged.",
+          "grid_shape": [
+            6,
+            6
+          ],
+          "target_shape": [
+            6,
+            6
+          ],
+          "reached_target": true,
+          "tries": 1
+        }
+      ],
+      "total_steps": 3,
+      "success": true,
+      "generated_at": "2025-10-28T11:00:02.860309"
+    },
+    {
+      "task_name": "00d62c1b",
+      "example_number": 2,
+      "steps": [
+        {
+          "step_number": 0,
+          "description": "1. Change the color of every black pixel that belongs to a contiguous black region (orthogonally connected up/down/left/right) that does not touch the image border to solid yellow, filling the entire region exactly.",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 1,
+          "description": "2. Do not alter any green pixels (preserve their color and positions).",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 2,
+          "description": "3. Leave all remaining black pixels \u2014 those that touch the image border or are isolated background dots \u2014 unchanged.",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        }
+      ],
+      "total_steps": 3,
+      "success": false,
+      "generated_at": "2025-10-28T11:01:34.314575"
+    },
+    {
+      "task_name": "00d62c1b",
+      "example_number": 3,
+      "steps": [
+        {
+          "step_number": 0,
+          "description": "1. Change the color of every black pixel that belongs to a contiguous black region (orthogonally connected up/down/left/right) that does not touch the image border to solid yellow, filling the entire region exactly.",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 1,
+          "description": "2. Do not alter any green pixels (preserve their color and positions).",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 2,
+          "description": "3. Leave all remaining black pixels \u2014 those that touch the image border or are isolated background dots \u2014 unchanged.",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        }
+      ],
+      "total_steps": 3,
+      "success": false,
+      "generated_at": "2025-10-28T11:03:48.443095"
+    },
+    {
+      "task_name": "00d62c1b",
+      "example_number": 4,
+      "steps": [
+        {
+          "step_number": 0,
+          "description": "1. Change the color of every black pixel that belongs to a contiguous black region (orthogonally connected up/down/left/right) that does not touch the image border to solid yellow, filling the entire region exactly.",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 1,
+          "description": "2. Do not alter any green pixels (preserve their color and positions).",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 2,
+          "description": "3. Leave all remaining black pixels \u2014 those that touch the image border or are isolated background dots \u2014 unchanged.",
+          "grid_shape": [
+            10,
+            10
+          ],
+          "target_shape": [
+            10,
+            10
+          ],
+          "reached_target": false,
+          "tries": 1
+        }
+      ],
+      "total_steps": 3,
+      "success": false,
+      "generated_at": "2025-10-28T11:05:47.626726"
+    },
+    {
+      "task_name": "00d62c1b",
+      "example_number": 5,
+      "steps": [
+        {
+          "step_number": 0,
+          "description": "1. Change the color of every black pixel that belongs to a contiguous black region (orthogonally connected up/down/left/right) that does not touch the image border to solid yellow, filling the entire region exactly.",
+          "grid_shape": [
+            20,
+            20
+          ],
+          "target_shape": [
+            20,
+            20
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 1,
+          "description": "2. Do not alter any green pixels (preserve their color and positions).",
+          "grid_shape": [
+            20,
+            20
+          ],
+          "target_shape": [
+            20,
+            20
+          ],
+          "reached_target": false,
+          "tries": 1
+        },
+        {
+          "step_number": 2,
+          "description": "3. Leave all remaining black pixels \u2014 those that touch the image border or are isolated background dots \u2014 unchanged.",
+          "grid_shape": [
+            20,
+            20
+          ],
+          "target_shape": [
+            20,
+            20
+          ],
+          "reached_target": false,
+          "tries": 1
+        }
+      ],
+      "total_steps": 3,
+      "success": false,
+      "generated_at": "2025-10-28T11:10:56.520475"
+    }
+  ],
+  "test_results": [
+    {
+      "test_number": 1,
+      "attempts": 3,
+      "success": false
+    }
+  ],
+  "test_success": 0,
+  "total_test_cases": 1,
+  "generated_at": "2025-10-28T11:46:52.466288"
+}

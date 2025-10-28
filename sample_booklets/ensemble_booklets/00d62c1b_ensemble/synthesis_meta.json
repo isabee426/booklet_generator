@@ -1,0 +1,57 @@
+{
+  "task_name": "00d62c1b",
+  "booklets": [
+    {
+      "example_number": 1,
+      "booklet_path": "example_1_booklet",
+      "steps": [
+        "1. Fill the empty cell that is orthogonally surrounded by the four green (3) cells at positions (1,2), (2,1), (2,3), (3,2) with color 4.",
+        "2. Fill the empty cell that is orthogonally surrounded by the four green (3) cells at positions (2,3), (3,2), (3,4), (4,3) with color 4.",
+        "3. Do not change any other cells (leave all existing green (3) cells and the black background (0) unchanged)."
+      ],
+      "total_steps": 3,
+      "steps_reaching_target": 1,
+      "success": true
+    },
+    {
+      "example_number": 2,
+      "booklet_path": "example_2_booklet",
+      "steps": [
+        "1. Locate the single black cell that is orthogonally surrounded by green pixels \u2014 specifically the empty cell that has green pixels at its up, down, left and right neighbors (the cell between the greens at (3,6), (5,6), (4,5) and (4,7)).",
+        "2. Fill that single black cell with color 4 (set the cell at row 4, column 6 (0-indexed) from 0 to 4).",
+        "3. Leave every other pixel unchanged (do not modify any other color-3 green pixels or any background pixels)."
+      ],
+      "total_steps": 3,
+      "steps_reaching_target": 1,
+      "success": true
+    },
+    {
+      "example_number": 3,
+      "booklet_path": "example_3_booklet",
+      "steps": [
+        "1. Color the four empty cells that form the left column of the ring\u2019s interior with color 4 \u2014 specifically cells at (row 3, col 4), (row 4, col 4), (row 5, col 4), (row 6, col 4).",
+        "2. Color the four empty cells that form the right column of the ring\u2019s interior with color 4 \u2014 specifically cells at (row 3, col 5), (row 4, col 5), (row 5, col 5), (row 6, col 5).",
+        "3. Color the single remaining empty cell inside the ring to the right of the top interior row with color 4 \u2014 cell (row 3, col 7)."
+      ],
+      "total_steps": 3,
+      "steps_reaching_target": 0,
+      "success": false
+    },
+    {
+      "example_number": 4,
+      "booklet_path": "example_4_booklet",
+      "steps": [
+        "1. Fill the 2\u00d72 empty hole inside the upper-left hollow 4\u00d74 square (the inner hole of the top big square) with color 4 \u2014 color its four interior cells yellow.",
+        "2. Complete the lower-left foot: the small L-shaped trio of green pixels attached beneath/left of the lower hollow square has one empty cell that would make a full 2\u00d72 block \u2014 color that single empty cell yellow (color 4).",
+        "3. Complete the lower-right foot: the small foot cluster at the extreme lower-right is missing one cell to become a 2\u00d72 block \u2014 color that single empty cell yellow (color 4)."
+      ],
+      "total_steps": 3,
+      "steps_reaching_target": 0,
+      "success": false
+    }
+  ],
+  "common_steps": [],
+  "total_training_examples": 5,
+  "total_booklets_generated": 4,
+  "generated_at": "2025-10-27T18:03:53.640920"
+}

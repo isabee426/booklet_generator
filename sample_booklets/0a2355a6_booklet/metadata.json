@@ -1,0 +1,46 @@
+{
+  "task_name": "0a2355a6",
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Locate every connected maroon (value 8) framed object in the same-size canvas and count how many distinct enclosed black/background holes (0) each object surrounds (the image contains four such objects with 1, 3, 2, and 1 holes respectively).",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T15:41:54.904791"
+    },
+    {
+      "step_number": 1,
+      "description": "2. Recolor all maroon pixels of each object according to its hole count (apply the same rule to every object): if the object encloses 1 hole \u2192 change its maroon pixels to color 1; if 2 holes \u2192 change to color 3; if 3 holes \u2192 change to color 2. Do not alter any background (0) or hole cells.",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T15:43:15.873482"
+    },
+    {
+      "step_number": 2,
+      "description": "3. Keep the canvas dimensions, object shapes, positions, and all non\u2011maroon pixels exactly as in the input; only replace maroon regions by the new color per step 2.",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": [
+        14,
+        14
+      ],
+      "tries": 1,
+      "reached_target": true,
+      "timestamp": "2025-10-27T15:43:45.084341"
+    }
+  ],
+  "total_steps": 3,
+  "generated_at": "2025-10-27T15:43:45.129432"
+}

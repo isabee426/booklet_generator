@@ -1,0 +1,46 @@
+{
+  "task_name": "temp_task",
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Fill the empty 2\u00d72 hole inside the hollow square ring in the upper-left with color 4 (yellow) \u2014 i.e., paint the 4 cells inside that 4\u00d74 green outline.",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T17:18:17.922578"
+    },
+    {
+      "step_number": 1,
+      "description": "2. Locate the left small L\u2011shaped foot (the 3\u2011cell green cluster below/left of the main body) and paint the single cell of that cluster that is closest to the body (the inner corner of the L) with color 4 (yellow).",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T17:19:11.799385"
+    },
+    {
+      "step_number": 2,
+      "description": "3. Locate the right small L\u2011shaped foot (the 3\u2011cell green cluster at the lower-right) and paint the single cell of that cluster that is closest to the body (the inner corner of that L) with color 4 (yellow).",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": [
+        10,
+        10
+      ],
+      "tries": 3,
+      "reached_target": false,
+      "timestamp": "2025-10-27T17:19:41.309703"
+    }
+  ],
+  "total_steps": 3,
+  "generated_at": "2025-10-27T17:23:57.052599"
+}

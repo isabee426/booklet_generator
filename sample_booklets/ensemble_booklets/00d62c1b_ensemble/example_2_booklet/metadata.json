@@ -1,0 +1,46 @@
+{
+  "task_name": "temp_task_ex2",
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Locate the single black cell that is orthogonally surrounded by green pixels \u2014 specifically the empty cell that has green pixels at its up, down, left and right neighbors (the cell between the greens at (3,6), (5,6), (4,5) and (4,7)).",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T17:39:10.259114"
+    },
+    {
+      "step_number": 1,
+      "description": "2. Fill that single black cell with color 4 (set the cell at row 4, column 6 (0-indexed) from 0 to 4).",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T17:39:24.939402"
+    },
+    {
+      "step_number": 2,
+      "description": "3. Leave every other pixel unchanged (do not modify any other color-3 green pixels or any background pixels).",
+      "grid_shape": [
+        10,
+        10
+      ],
+      "target_shape": [
+        10,
+        10
+      ],
+      "tries": 1,
+      "reached_target": true,
+      "timestamp": "2025-10-27T17:39:42.077720"
+    }
+  ],
+  "total_steps": 3,
+  "generated_at": "2025-10-27T17:39:42.122959"
+}

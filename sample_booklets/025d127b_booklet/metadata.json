@@ -1,0 +1,70 @@
+{
+  "task_name": "025d127b",
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Find the two colored connected objects (the magenta link in the upper half and the orange link in the lower half). Treat each object independently; background (0) stays unchanged.",
+      "grid_shape": [
+        14,
+        9
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T14:51:27.116004"
+    },
+    {
+      "step_number": 1,
+      "description": "2. For each object compute its lowest occupied row (the bottom row of its bounding box).",
+      "grid_shape": [
+        14,
+        9
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T14:52:04.119501"
+    },
+    {
+      "step_number": 2,
+      "description": "3. For that object, take every colored cell whose row index is strictly above that lowest occupied row and move that cell one column to the right. Do this based on the original positions (moves are applied simultaneously).",
+      "grid_shape": [
+        14,
+        9
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T14:52:51.023221"
+    },
+    {
+      "step_number": 3,
+      "description": "4. Leave every colored cell that already sits on the object's lowest occupied row in place (do not move those).",
+      "grid_shape": [
+        14,
+        9
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T14:53:10.920399"
+    },
+    {
+      "step_number": 4,
+      "description": "5. Keep the same color values when moving cells, do not change shape other than these horizontal one-cell displacements, and do not alter any other pixels.",
+      "grid_shape": [
+        14,
+        9
+      ],
+      "target_shape": [
+        14,
+        9
+      ],
+      "tries": 1,
+      "reached_target": false,
+      "timestamp": "2025-10-27T14:53:38.628536"
+    }
+  ],
+  "total_steps": 5,
+  "generated_at": "2025-10-27T15:00:46.192442"
+}

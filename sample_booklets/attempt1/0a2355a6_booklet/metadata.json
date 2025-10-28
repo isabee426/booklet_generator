@@ -1,0 +1,70 @@
+{
+  "task_name": "0a2355a6",
+  "steps": [
+    {
+      "step_number": 0,
+      "description": "1. Find all separate maroon objects (connected nonzero pixels) on the canvas \u2014 there are four distinct frame-like shapes: a top-left horizontal frame, a tall right vertical bar with three cutouts, a lower-left L\u2011cluster (two-part frame), and a bottom-right small square frame. Do not change any background pixels.",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_ideal": false,
+      "timestamp": "2025-10-27T13:37:15.219587"
+    },
+    {
+      "step_number": 1,
+      "description": "2. For each object, count how many fully enclosed background holes it contains (background regions completely surrounded by that object). Use the image connectivity that matches the pixel grid (4\u2011connected) when determining enclosure. In this example the counts are: top-left = 1 hole, bottom-right = 1 hole, lower-left L = 2 holes, tall right bar = 3 holes.",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_ideal": false,
+      "timestamp": "2025-10-27T13:37:48.048078"
+    },
+    {
+      "step_number": 2,
+      "description": "3. Group objects by their hole count. All objects with the same number of enclosed holes form one group (here: group A = 1\u2011hole objects {top-left, bottom-right}, group B = 2\u2011hole object {lower-left L}, group C = 3\u2011hole object {tall right bar}).",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_ideal": false,
+      "timestamp": "2025-10-27T13:38:23.727083"
+    },
+    {
+      "step_number": 3,
+      "description": "4. Recolor every pixel of every object in a group with the same new label/value (without changing shape or position). For this example match the provided output mapping: 1\u2011hole group \u2192 label 1, 3\u2011hole group \u2192 label 2, 2\u2011hole group \u2192 label 3.",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": null,
+      "tries": 1,
+      "reached_ideal": false,
+      "timestamp": "2025-10-27T13:39:28.625756"
+    },
+    {
+      "step_number": 4,
+      "description": "5. Leave the background pixels as 0 and do not modify object geometry or hole interiors; only replace the object pixel values according to the group mapping.",
+      "grid_shape": [
+        14,
+        14
+      ],
+      "target_shape": [
+        14,
+        14
+      ],
+      "tries": 1,
+      "reached_ideal": false,
+      "timestamp": "2025-10-27T13:40:10.635003"
+    }
+  ],
+  "total_steps": 5,
+  "generated_at": "2025-10-27T13:40:10.774009"
+}
