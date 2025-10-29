@@ -47,6 +47,7 @@ class ARCBatchVisualGenerator:
         if not self.api_key:
             raise ValueError("OpenAI API key must be set in OPENAI_API_KEY environment variable")
         self.client = OpenAI(api_key=self.api_key)
+        self.conversation_history = []  # Shared context for execution
         
     def load_task(self, file_path: str) -> Dict[str, Any]:
         """Load an ARC-AGI task from JSON file"""
@@ -62,8 +63,14 @@ class ARCBatchVisualGenerator:
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
     
-    def call_ai(self, text_prompt: str, image_paths: List[str] = None) -> str:
-        """Call OpenAI API with text and optional images"""
+    def call_ai(self, text_prompt: str, image_paths: List[str] = None, use_history: bool = False) -> str:
+        """Call OpenAI API with text and optional images
+        
+        Args:
+            text_prompt: The prompt text
+            image_paths: Optional list of image paths to include
+            use_history: If True, use conversation history (for execution with context)
+        """
         content = [{"type": "text", "text": text_prompt}]
         
         if image_paths:
@@ -74,9 +81,16 @@ class ARCBatchVisualGenerator:
                     "image_url": {"url": f"data:image/png;base64,{base64_img}"}
                 })
         
+        # Build messages with or without history
+        if use_history and self.conversation_history:
+            messages = self.conversation_history.copy()
+            messages.append({"role": "user", "content": content})
+        else:
+            messages = [{"role": "user", "content": content}]
+        
         response = self.client.chat.completions.create(
             model="gpt-5-mini",
-            messages=[{"role": "user", "content": content}]
+            messages=messages
         )
         
         return response.choices[0].message.content
@@ -202,8 +216,12 @@ For EACH of the {len(training_examples)} examples, answer:
 Example 1:
 - What SPECIFIC objects/shapes are in the input? (colors, sizes, positions)
 - What SPECIFIC objects/shapes are in the output? (colors, sizes, positions)
-- What CHANGED from input to output? (added? removed? moved? recolored?)
-- What STAYED THE SAME? (dimensions? certain objects? background?)
+- What CHANGED from input to output? 
+  - Were objects added? removed? moved? recolored?
+  - Were ENTIRE objects changed or only PARTS of objects? (e.g., "only the top half was recolored")
+  - If partial: which part? (top/bottom? left/right? edges? interior?)
+- What STAYED THE SAME? (dimensions? certain objects? parts of objects? background?)
+- In an input, if there is some object that is different than all the other objects (a reference object) what does it say about the puzzle?
 
 Example 2:
 - [Same questions]
@@ -211,27 +229,58 @@ Example 2:
 (Repeat for all examples)
 
 ═══════════════════════════════════════════════════════════════════════════
-STAGE 2: FIND THE PATTERN
+STAGE 2: COMPARE INPUTS (Focus on Differences)
 ═══════════════════════════════════════════════════════════════════════════
-Now look ACROSS all examples:
+**CRITICAL: Explicitly identify what DIFFERS between inputs - this reveals what your rule must handle!**
+
+Compare INPUTS side-by-side:
+- Example 1 input vs Example 2 input: WHAT IS DIFFERENT?
+  (e.g., "Ex1 has 1 hole, Ex2 has 2 holes", "Ex1 is 6x6, Ex2 is 10x10")
+- Example 1 input vs Example 3 input: WHAT IS DIFFERENT?
+- Example 2 input vs Example 3 input: WHAT IS DIFFERENT?
+- (Continue for all pairs)
+
+What INPUT features vary?
+- Grid dimensions? [list all sizes: 6x6, 10x10, 20x20]
+- Number of objects/regions? [list all counts: 1, 2, 3, 5]
+- Object sizes? [small single-pixel vs large rectangular]
+- Object positions? [scattered vs clustered]
+- Colors used? [do all use same colors or different?]
+
+**ALSO Compare OUTPUTS side-by-side:**
+- Example 1 output vs Example 2 output: WHAT IS DIFFERENT?
+  (e.g., "Ex1 filled 1 region, Ex2 filled 2 regions", "Ex1 output 6x6, Ex2 output 10x10")
+- What OUTPUT features vary?
+  (This helps confirm what the transformation does to different inputs)
+- What OUTPUT features are CONSTANT?
+  (e.g., "all outputs use same colors", "all have yellow-filled regions", "dimensions always match input")
+
+═══════════════════════════════════════════════════════════════════════════
+STAGE 3: FIND THE PATTERN (Constants Despite Differences)
+═══════════════════════════════════════════════════════════════════════════
+Despite the INPUT differences you found, what is CONSTANT in the transformation?
 
 CONSTANTS (True for EVERY example):
 - Output dimensions: [same as input? different? specific size?]
-- Objects preserved: [what objects appear in both input and output?]
-- Transformation type: [fill? move? copy? recolor? add? remove?]
-- Spatial rules: [positions? alignments? distances?]
+- Transformation type: [fill? move? copy? recolor? add? remove? extend?]
+- Which objects/regions are affected: [all? some? based on what property?]
+- ENTIRE objects or PARTS of objects?: [whole objects change? or only top/bottom/edges?]
+- What criterion determines the transformation: [position? color? enclosure? connectivity?]
+- Spatial rules: [positions? alignments? distances? directions?]
+- If partial transformations: which part? [top rows? bottom edge? left side? interior vs border?]
 
-VARIANTS (Different between examples):
+**KEY INSIGHT:** If inputs differ in count/size but transformation is CONSTANT, 
+your rule must use "for each" or "all" to handle the variation!
+
+VARIANTS (Features that differ but don't affect the transformation):
 - What varies: [object count? sizes? positions? colors?]
-- Range of variation: [2-5 objects? sizes 1-3? etc.]
-
-CRITICAL: Find what's UNIVERSAL despite the variations.
+- Range of variation: [2-5 objects? sizes 1-3? grid sizes 6x6 to 20x20?]
 
 ═══════════════════════════════════════════════════════════════════════════
-STAGE 3: FORM & TEST HYPOTHESIS
+STAGE 4: FORM & TEST HYPOTHESIS
 ═══════════════════════════════════════════════════════════════════════════
 
-Based on the patterns, state THE RULE in ONE sentence:
+Based on the CONSTANTS you found (ignoring the variations), state THE RULE in ONE sentence:
 "The rule is: [FILL IN - be specific but general]"
 
 Now TEST this rule example-by-example:
@@ -247,7 +296,7 @@ Example 2: If I apply "[your rule]" to Example 2's input...
 If ANY example fails → REVISE your rule and test again.
 
 ═══════════════════════════════════════════════════════════════════════════
-STAGE 4: EDGE CASES & REFINEMENT
+STAGE 5: EDGE CASES & REFINEMENT
 ═══════════════════════════════════════════════════════════════════════════
 
 Check these common mistakes:
@@ -263,13 +312,17 @@ Provide:
 
 1. INDIVIDUAL ANALYSIS: What changed in each example (be specific!)
 
-2. UNIVERSAL CONSTANTS: What's true for EVERY transformation
+2. INPUT DIFFERENCES: What varies between the inputs? (dimensions? object counts? sizes?)
 
-3. THE RULE: One clear sentence describing the transformation
+3. OUTPUT DIFFERENCES: What varies between the outputs? (confirms how transformation handles variation)
 
-4. VALIDATION: For each example, confirm your rule produces the correct output
+4. UNIVERSAL CONSTANTS: Despite input/output differences, what's ALWAYS true in every transformation?
 
-5. CONFIDENCE: How certain are you this rule is correct? Any ambiguities?"""
+5. THE RULE: One clear sentence describing the transformation (must handle all variations)
+
+6. VALIDATION: For each example, confirm your rule produces the correct output
+
+7. CONFIDENCE: How certain are you this rule is correct? Any ambiguities?"""
         
         reasoning_analysis = self.call_ai(reasoning_prompt, all_image_paths)
         
@@ -278,16 +331,115 @@ Provide:
         except:
             print(f"Reasoning Analysis: [Generated - {len(reasoning_analysis)} chars]\n")
         
+        # PHASE 1.5: COLOR VERIFICATION - Map visual appearance to actual numeric values
+        print("\nPhase 1.5: Verifying Color Values...")
+        print("-" * 80)
+        
+        # Extract all unique color values from training examples
+        all_color_values = set()
+        for ex in training_examples:
+            for row in ex['input']:
+                all_color_values.update(row)
+            for row in ex['output']:
+                all_color_values.update(row)
+        
+        color_values_sorted = sorted(all_color_values)
+        
+        # Show grid data samples to verify colors
+        color_verify_prompt = f"""CRITICAL COLOR VERIFICATION:
+
+You just analyzed the puzzle visually. Now we need to verify the EXACT numeric color values.
+
+**ACTUAL COLOR VALUES in the grid data:**
+Values present: {color_values_sorted}
+
+**Example grid data from training example 1:**
+Input (first 3 rows):
+{chr(10).join([str(row) for row in training_examples[0]['input'][:3]])}
+
+Output (first 3 rows):
+{chr(10).join([str(row) for row in training_examples[0]['output'][:3]])}
+
+**TASK: Create a color mapping**
+
+For each numeric value in {color_values_sorted}, identify what you SEE visually in the images:
+
+Example format:
+- Color 0: Black (background)
+- Color 1: Blue
+- Color 2: Red
+- Color 5: Gray/Orange-looking squares
+- Color 7: Orange
+
+**IMPORTANT:** 
+1. Use the ACTUAL NUMERIC VALUES from the grid data
+2. Don't assume color names from appearance - verify with grid data
+3. If you called something "orange" in your analysis, check if it's actually value 5 or 7
+4. The NUMBERS are ground truth, not the visual appearance
+
+Output a clear mapping for each color value present."""
+        
+        color_mapping = self.call_ai(color_verify_prompt, all_image_paths[:2])  # Show first input/output pair
+        
+        try:
+            print(f"Color Mapping:\n{color_mapping}\n")
+        except:
+            print(f"Color Mapping: [Generated - {len(color_mapping)} chars]\n")
+        
         # PHASE 2: Generate universal steps based on validated hypothesis
-        print("Phase 2: Generating Universal Steps from Validated Hypothesis...")
+        print("\nPhase 2: Generating Universal Steps from Validated Hypothesis...")
         print("-" * 80)
         
         all_images_with_outputs = all_image_paths  # Already have all images
         
+        # Extract the rule from reasoning analysis
+        rule_section = "THE RULE"
+        if rule_section in reasoning_analysis:
+            rule_start = reasoning_analysis.index(rule_section)
+            rule_text = reasoning_analysis[rule_start:rule_start+500]
+        else:
+            rule_text = "[Rule not explicitly extracted - review full reasoning]"
+        
         steps_prompt = f"""Based on your structured reasoning, generate UNIVERSAL STEPS that work for ALL {len(training_examples)} training examples.
 
-**Your Structured Reasoning:**
+**YOUR COMPLETE STRUCTURED REASONING:**
 {reasoning_analysis}
+
+**VERIFIED COLOR MAPPING (use these EXACT values in your steps):**
+{color_mapping}
+
+🚨 **CRITICAL - USE NUMERIC COLOR VALUES ONLY:**
+- In your reasoning, you may have used color NAMES (e.g., "orange", "gray")
+- Those were VISUAL descriptions and may not match actual values
+- In your STEPS, use ONLY the verified numeric values from the mapping above
+- Example: If you said "orange rectangles" but the mapping shows "Color 5: gray/orange-looking"
+  → Your step MUST say "color 5" or "gray (5)", NOT "orange (7)"
+
+**CRITICAL: Your steps MUST be a direct translation of your validated rule. Do NOT add complexity or deviate!**
+
+**BEFORE GENERATING STEPS - EXTRACT THE CORE ACTION:**
+
+From your hypothesis and analysis of INPUT DIFFERENCES, identify:
+1. **WHAT to identify/find**: [What objects/regions/patterns to locate visually]
+2. **HOW MANY**: [Does count vary? If so, use "for each" or "all"]
+3. **WHAT to do to them**: [What transformation/action to apply]
+4. **WHAT to preserve**: [What should NOT change]
+
+Example:
+- Hypothesis: "Fill black regions enclosed by green with yellow"
+- INPUT DIFFERENCES: Grid sizes vary (6x6, 10x10, 20x20), hole count varies (1-5), hole sizes vary
+- WHAT to find: Black (0) regions completely enclosed by green (3) (not touching border)
+- HOW MANY: VARIES (1-5 regions) → must use "for each" or "all"
+- WHAT to do: Fill with yellow (4)
+- WHAT to preserve: Green (3) pixels, border-touching black (0) pixels
+
+TRANSLATES TO STEPS:
+1. Find all black (0) regions that are completely enclosed by green (3) and don't touch the image border
+2. For each found region, fill it completely with yellow (4)
+3. Leave all green (3) pixels and border-touching black (0) pixels unchanged
+
+See how differences in inputs → "for each" pattern? This handles variation!
+No BFS, no algorithms, just visual action applied to ALL matching objects!
 
 **ALL TRAINING EXAMPLES (see images - input/output pairs):**
 """
@@ -297,33 +449,100 @@ Provide:
         
         steps_prompt += f"""
 
-TASK: Using THE RULE you validated above, break it into 3-7 CONCRETE, EXECUTABLE steps.
+TASK: Using THE RULE you validated above, break it into 2-8 VISUAL, EXECUTABLE steps.
+
+**🚨 IF YOUR RULE IS COMPLEX → USE MORE STEPS, NOT ALGORITHMS!**
+
+Examples of how to handle complex rules:
+
+**SIMPLE RULE (2-3 steps):**
+Rule: "Move colored blocks to touch the red bar"
+Steps:
+1. Identify the long red (2) bar
+2. For each non-red colored block, slide it toward the red bar until touching
+3. Preserve all shapes and colors
+
+**COMPLEX RULE (5-8 steps) - NO ALGORITHMS:**
+Rule: "Fill black regions enclosed by green with yellow"
+
+❌ WRONG (algorithmic):
+1. Allocate visited array
+2. Run BFS on black pixels
+3. Check touches_border flag
+4. Fill if enclosed
+
+✅ RIGHT (visual breakdown):
+1. Find all separate black (0) regions in the image
+2. For each black region, visually trace its boundary
+3. Check: Does any part of this region touch the image border? (look at edges)
+4. If the region does NOT touch the border, it is enclosed
+5. For each enclosed region, fill every pixel of that region with yellow (4)
+6. Keep all green (3) pixels unchanged
+7. Keep border-touching black (0) pixels unchanged
 
 **CRITICAL REQUIREMENTS:**
-1. Base steps on THE RULE from your reasoning (don't ignore your analysis!)
-2. Steps must work for ALL {len(training_examples)} examples, handling the VARIANTS you identified
-3. Use the CONSTANTS you found to make steps universal
-4. ONE CONCRETE ACTION PER STEP (not "for each" loops)
+1. Base steps DIRECTLY on your hypothesis (don't add complexity!)
+2. If your rule involves connectivity/enclosure/detection → BREAK IT INTO MORE STEPS
+3. **NEVER use algorithms** - if tempted to write BFS/DFS, break into visual steps instead:
+   - ❌ "Run BFS to find enclosed regions"
+   - ✅ "1. Find all black regions
+         2. For each region, check if any part touches the border
+         3. Regions not touching border are enclosed
+         4. Fill each enclosed region with yellow"
+4. Steps must work for ALL {len(training_examples)} examples, handling the VARIANTS you identified
+5. Use REPEATABLE PATTERNS when object count varies (use "for each" to handle variation)
+6. **Think: What would a HUMAN do step-by-step?** Not what a program would do.
+7. **If it takes 8 steps to explain without algorithms, use 8 steps!**
 
 **HOW TO CONVERT YOUR RULE INTO STEPS:**
 
+**IMPORTANT: Your hypothesis is already the answer! Break it into 2-8 visual actions.**
+
+If your rule is simple, use fewer steps. If complex (connectivity, enclosure), use more steps!
+
 If your rule is: "Fill each enclosed green-framed region with yellow"
 Then steps should be:
-'1. Identify the first green-framed region
- 2. Fill that enclosed region with yellow
- 3. Identify the second green-framed region
- 4. Fill that enclosed region with yellow
- (etc. - one region per step)'
 
-NOT:
-'1. For each green-framed region, fill with yellow' ❌ (too high-level, not executable)
+OPTION A (Repeatable pattern - BEST):
+'1. Find all black (0) regions that are completely enclosed by green (3) pixels
+ 2. For each found region, fill the entire region with yellow (4)
+ 3. Preserve all green (3) pixels and border-touching black (0) pixels'
+
+OPTION B (Only if objects have specific properties):
+'1. Identify reference row at bottom showing: red (2), blue (1), yellow (4)
+ 2. For each colored block in the grid (scanning left-to-right, top-to-bottom), draw bridge to next color in sequence using the block's color'
+
+NOT (too sequential):
+'1. Find first region, fill with yellow
+ 2. Find second region, fill with yellow  
+ 3. Find third region, fill with yellow
+ (etc. - 7 steps for 7 regions)' ❌ (What if there are 10 regions? Or 3?)
 
 **STEP PHRASING GUIDE:**
 - Use VISUAL SPATIAL language: "the bottom row", "each colored block", "enclosed regions"
 - NOT coordinates: avoid "cell at (x,y)" or "row 3, column 5"
-- **ALWAYS include color VALUES:** "black (0)", "green (3)", "yellow (4)", "red (2)"
+- **🚨 ALWAYS use VERIFIED NUMERIC VALUES from the color mapping above**
+  - Example: "color 5 tiles" or "gray (5)" NOT "orange tiles" or "orange (7)"
+  - Example: "color 2" or "red (2)" NOT just "red"
+  - If unsure, refer to the color mapping - use the EXACT numeric value shown
 - Include measurements: "2 cells wide", "3x3 square", "entire column"
 - Handle variation: "the first object", "the second object" (works for any count)
+
+**DESCRIBING PARTS OF OBJECTS (for partial transformations):**
+- "the bottom three cells of the shape"
+- "the top row of each object"
+- "the left edge of the blue rectangle"
+- "the middle column of the grid"
+- "the outer border of each region"
+- "starting from the bottom of the object, going up 5 cells"
+- "across the entire width but only the bottom 2 rows"
+- "the leftmost cell of each colored block"
+
+Use relative positions within objects:
+✓ "the bottom-left corner of the red shape"
+✓ "the top half of each enclosed region"
+✓ "the rightmost column of the entire grid"
+✓ "cells adjacent to the green boundary"
 
 **COLOR REFERENCE (always use name + number):**
 - 0 = black (0)
@@ -337,48 +556,98 @@ NOT:
 - 8 = cyan/light blue (8)
 - 9 = maroon/dark red (9)
 
-**ONE CONCRETE ACTION PER STEP:**
-- Each step = ONE SPECIFIC ACTION (e.g., "draw the first bridge", not "draw all bridges")
-- If same action on multiple objects, ONE step per object
-- Steps should be concrete: "Draw bridge from red to blue using red" NOT "Draw bridges"
-- NO pseudocode: NO "for each...", NO "if/else", NO loops
-- Each step produces visible change
+**WHEN TO USE REPEATABLE PATTERNS:**
+- If action applies to VARIABLE number of objects → use "for each" or "repeat"
+- If action applies to FIXED objects → be specific about each
+- Steps should be EXECUTABLE AS WRITTEN
+
+GOOD (Repeatable pattern):
+✓ "For each black (0) region enclosed by green (3), fill with yellow (4)"
+✓ "Repeat: Draw bridge from current block to next color in sequence. Continue for all blocks."
+
+GOOD (Fixed objects with specific properties):
+✓ "Draw bridge from red (2) block to blue (1) block using red (2)"
+✓ "Draw bridge from blue (1) block to yellow (4) block using blue (1)"
+
+BAD (Too sequential for variable count):
+❌ "Fill first region... fill second region... fill third region... [7 steps]"
+❌ "Draw first bridge, draw second bridge, draw third bridge..."
 
 **GOOD EXAMPLES:**
 
-Example A (Reference object + bridges):
-'1. Identify the bottom row as reference: red, blue, yellow, green
- 2. Draw bridge from red block to blue block using red, matching block width
- 3. Draw bridge from blue block to yellow block using blue
- 4. Draw bridge from yellow block to green block using yellow  
- 5. Draw bridge from green block back to red block using green'
+Example A (Repeatable pattern with variable count):
+'1. Find all black (0) regions that are completely enclosed by green (3) pixels (not touching image border)
+ 2. For each found region, fill every pixel of that region with yellow (4)
+ 3. Keep all green (3) pixels and border-touching black (0) pixels unchanged'
 
-Example B (Object recoloring based on property):
-'1. Count holes in first maroon-framed object (2 holes), recolor entire object to color 3
- 2. Count holes in second maroon object (1 hole), recolor to color 1
- 3. Count holes in third maroon object (3 holes), recolor to color 2'
+Example B (Reference object + repeatable):
+'1. Identify the bottom row as color sequence reference: red (2), blue (1), yellow (4), green (3)
+ 2. For each colored block in the grid (left-to-right, top-to-bottom), draw a vertical bridge connecting it to the next color in the sequence, using the current block's color and matching its width'
 
-Example C (Fill enclosed regions):
-'1. Locate first region enclosed by green frame
- 2. Fill that region with yellow
- 3. Locate second region enclosed by green frame
- 4. Fill that region with yellow'
+Example C (Fixed objects with properties):
+'1. For each maroon (9) outlined object, count the number of enclosed black (0) holes inside it
+ 2. Recolor that object based on hole count: 1 hole → blue (1), 2 holes → green (3), 3 holes → red (2)'
+
+Example D (Partial transformation - only parts of objects change):
+'1. For each blue (1) rectangular object in the grid, identify its bottom edge
+ 2. Extend yellow (4) cells downward from the bottom edge until reaching a boundary or the grid edge
+ 3. Keep the original blue (1) rectangle unchanged'
+
+Example E (Partial transformation with measurements):
+'1. For each red (2) shape, recolor only the top 2 rows to green (3)
+ 2. Leave the remaining bottom portion of each shape as red (2)
+ 3. Preserve all other colors unchanged'
 
 **BAD EXAMPLES (Don't do this):**
-'1. For each color pair in sequence, draw bridge' ❌ (pseudocode)
-'1. Draw all the bridges' ❌ (too vague)
+'1. Fill first region, fill second region, fill third region...' ❌ (too sequential - what if there are 10 regions?)
+'1. For each region, process it' ❌ (too vague - process HOW?)
+'1. Draw all the bridges' ❌ (too vague - which bridges? how?)
 '1. Set cell [2,3] to value 4' ❌ (coordinates, not visual)
 '1. Run BFS to find connected components' ❌ (algorithm, not visual action)
 '1. Allocate visited array and iterate...' ❌ (programming, not instruction)
+'1. Scan top to bottom, left to right, for each pixel check if...' ❌ (implementation details)
 
 **ABSOLUTELY FORBIDDEN:**
 ❌ NO algorithms: BFS, DFS, flood fill algorithms, graph traversal
-❌ NO programming: loops, arrays, visited maps, mode calculations
-❌ NO implementation details: "if touches_border is false then..."
+❌ NO programming: loops, arrays, visited maps, mode calculations, "for i in range", "while touching"
+❌ NO implementation details: "if touches_border is false then...", "allocate array", "mark visited"
+❌ NO variables or flags: "touches_border", "visited[h][w]", "mode of pixels"
 ❌ Stay HUMAN-READABLE: A person should understand without coding knowledge
 
+**IF YOU'RE TEMPTED TO WRITE AN ALGORITHM:**
+→ STOP! Break it into MORE visual steps instead (use 6-8 steps if needed)
+
+**YOUR TURN - TRANSLATE YOUR HYPOTHESIS:**
+
+Your hypothesis was: [insert your hypothesis from above]
+
+Now translate it into 2-8 steps (use MORE steps for complex rules):
+1. WHAT to find: [describe visually with verified color values]
+2. HOW to check/identify: [if complex, break this into multiple steps]
+3. WHAT to do: [use "for each" if count varies]
+4. WHAT to preserve: [what stays unchanged]
+
+Remember: 8 visual steps > 3 algorithmic steps!
+
+**DO NOT:**
+- Add BFS/DFS/algorithms
+- Add "visited arrays" or "mode calculations"
+- Write implementation code
+- Make it more complex than your hypothesis
+
 **OUTPUT FORMAT:**
-Numbered list, 3-7 steps. Each step is one concrete, VISUAL action (NOT code, NOT algorithms)."""
+Numbered list, 2-4 VISUAL steps that DIRECTLY translate your hypothesis.
+Use "for each" for repeatable patterns.
+Include color values: black (0), green (3), yellow (4), etc.
+
+**MANDATORY FINAL CHECK BEFORE SUBMITTING:**
+After you write your steps, ask yourself:
+1. "Do these steps DIRECTLY translate my hypothesis/rule?"
+2. "Did I add any complexity that wasn't in my original rule?"
+3. "Would these steps produce the EXACT outputs I saw?"
+4. "Am I using 'for each' to handle variation in object count?"
+
+If ANY answer is "no", REVISE the steps to match your hypothesis EXACTLY."""
         
         steps_response = self.call_ai(steps_prompt, all_images_with_outputs)
         
@@ -395,9 +664,22 @@ Numbered list, 3-7 steps. Each step is one concrete, VISUAL action (NOT code, NO
             except:
                 print(f"  {i}. [Step {i}]")
         
+        # VERIFICATION: Check if steps align with the rule
+        # DISABLED FOR TESTING - Was making steps worse by forcing oversimplification
+        # print("\nVerifying steps match the validated rule...")
+        # verification = self.call_ai(verify_prompt, [])
+        # if "MISMATCH" in verification.upper():
+        #     ... regenerate steps ...
+        
+        print("\n[Verification disabled for testing - using initial generated steps]")
+        
         # PHASE 3: Generate step-by-step booklets for each training example
         print("\nPhase 3: Generating Step-by-Step Booklets...")
         print("-" * 80)
+        
+        # HISTORY MODE DISABLED - Each execution is a fresh API call
+        # AI only gets what's in the current prompt (no memory of rule/goal between steps)
+        self.conversation_history = []  # Not used when use_history=False
         
         validation_results = []
         booklet_data = []
@@ -433,33 +715,52 @@ Numbered list, 3-7 steps. Each step is one concrete, VISUAL action (NOT code, NO
                 img_current = grid_to_image(current_grid, 30)
                 img_current.save(current_img_path)
                 
-                # Execute this single step (BLIND - separate context, never saw outputs)
-                execute_prompt = f"""Look at the CURRENT GRID IMAGE above and execute this visual transformation step.
+                # Execute this single step with full reasoning context
+                execute_prompt = f"""🖼️ **LOOK AT THE CURRENT GRID IMAGE ABOVE FIRST**
 
+**YOUR COMPLETE REASONING ANALYSIS:**
+{reasoning_analysis}
+
+**UNIVERSAL STEPS (based on your reasoning):**
+{chr(10).join(f"{i+1}. {s}" for i, s in enumerate(universal_steps))}
+
+**NOW EXECUTE ONLY THIS STEP:**
 STEP {step_idx + 1} of {len(universal_steps)}:
 {step}
 
-Current grid (see IMAGE above, also as text):
+**BEFORE EXECUTING:**
+1. **LOOK at the IMAGE above** - this is the current state of the grid
+2. Visually identify the objects/regions/patterns in the image
+3. Apply this step to what you SEE in the image
+4. Keep the full analysis and goal in mind
+
+Current grid state (see IMAGE above for visual, grid data below for reference):
 {self.format_grid(current_grid)}
 
-Apply this ENTIRE step to the current grid VISUALLY. If this step has multiple parts (e.g., "for each X do Y"), complete ALL iterations in this single step.
+Apply this step to the VISUAL IMAGE above.
 
 **THINK VISUALLY:**
 - Work from the IMAGE you see above
 - Identify objects/regions/patterns VISUALLY in the image
-- "black (0) regions" = look for black areas in image
+- "black (0) regions" = look for ALL black areas in image
 - "enclosed by green (3)" = look for green boundaries in image
-- "fill with yellow (4)" = change those pixels to yellow
+- "for each" = find ALL matching objects and apply action to ALL of them
+- "fill with yellow (4)" = change those pixels to yellow (4)
+
+**IF STEP SAYS "FOR EACH":**
+- Find ALL matching objects in the image
+- Apply the action to EVERY single one
+- Don't stop after the first few - get them ALL
+- Example: "for each enclosed region" = find region 1, fill it... find region 2, fill it... find region 3, fill it... until no more regions
 
 CRITICAL EXECUTION RULES:
-- Execute the COMPLETE step - if it says "for each", do ALL of them now
-- If it has conditionals (if/else), apply them ALL in this step
+- If step says "for each" or "repeat", do it for ALL matching objects
 - Apply ONLY this step - nothing more
-- Do NOT remove or move cells unless this step explicitly requires it
-- PRESERVE DETAILS: Don't accidentally modify objects unless this step explicitly requires it - keep their exact shapes
-- CONSISTENCY: If step applies to multiple objects, apply it IDENTICALLY to ALL of them
-- COMPLETENESS: Don't miss single-cell blocks or small details - count carefully
-- EXACT SHAPES: If copying/transforming shapes, preserve their exact dimensions
+- Do NOT remove or move cells unless step explicitly requires it
+- PRESERVE DETAILS: Don't accidentally modify objects unless step requires it - keep exact shapes
+- CONSISTENCY: Apply transformation IDENTICALLY to all similar objects
+- COMPLETENESS: Don't miss ANY objects - count carefully and check entire image
+- EXACT SHAPES: If copying/transforming shapes, preserve exact dimensions
 - You MUST output a complete grid
 
 Output the resulting grid using the color VALUES (0-9).
@@ -470,7 +771,8 @@ RESULT GRID:
 ..."""
                 
                 # BLIND EXECUTION: Fresh API call (no context from reasoning)
-                response = self.call_ai(execute_prompt, [current_img_path])
+                # Execute WITHOUT history - only gets current prompt
+                response = self.call_ai(execute_prompt, [current_img_path], use_history=False)
                 new_grid = self.parse_grid_from_response(response)
                 
                 if new_grid:
@@ -544,8 +846,18 @@ RESULT GRID:
         print(f"\nValidation: {successful_validations}/{len(training_examples)} examples passed")
         
         # PHASE 4: Refine if needed
-        max_refinements = 3
+        max_refinements = 1  # Allow 1 refinement attempt
         refinement_count = 0
+        refinement_history = []  # Track each refinement iteration
+        
+        # Record initial attempt
+        refinement_history.append({
+            "iteration": 0,
+            "steps": universal_steps,
+            "success_count": successful_validations,
+            "failed_examples": [v['example_number'] for v in validation_results if not v['success']],
+            "action": "initial_generation"
+        })
         
         while successful_validations < len(training_examples) and refinement_count < max_refinements:
             refinement_count += 1
@@ -593,9 +905,35 @@ RESULT GRID:
                     if failed_step is not None:
                         refine_prompt += f"  Problem: Step {failed_step + 1} (\"{universal_steps[failed_step]}\") produced wrong result\n"
             
+            # NEW REFINEMENT APPROACH: Break down original rule into more granular steps
+            current_step_count = len(universal_steps)
+            target_step_count = current_step_count + 1  # Add one more step each iteration
+            
             refine_prompt += f"""
 
-**TASK: MODIFY your steps to work for ALL examples, including the failed ones above.**
+**YOUR COMPLETE STRUCTURED REASONING:**
+{reasoning_analysis}
+
+**VERIFIED COLOR MAPPING (use these EXACT values):**
+{color_mapping}
+
+🚨 **CRITICAL: Use the correct numeric color values from the mapping above!**
+If your current steps have wrong color values, that's likely why they're failing.
+
+**TASK: Your current {current_step_count} steps are failing. Break down your VALIDATED RULE into {target_step_count} MORE GRANULAR steps.**
+
+Review your full reasoning above to understand:
+- What the transformation actually does
+- What differences exist between inputs
+- What stays constant across all examples
+- Your validated hypothesis and how you tested it
+- **Most importantly: Use the CORRECT color values from the verified mapping**
+
+**REFINEMENT STRATEGY:**
+- Go back to your original rule/hypothesis
+- Break it down into {target_step_count} smaller, more specific visual actions
+- Each step should be EASIER to execute than before
+- Make implicit operations explicit
 
 **CRITICAL - DO NOT WRITE ALGORITHMS:**
 ❌ NO: "Allocate boolean visited array"
@@ -604,25 +942,34 @@ RESULT GRID:
 ❌ NO: "If touches_border is false then..."
 ❌ NO: Programming/implementation details
 
-✅ YES: Visual, high-level actions
-✅ YES: "Find first black region enclosed by green"
-✅ YES: "Fill that region with yellow (4)"
-✅ YES: Human-readable instructions
+✅ YES: Visual, high-level actions broken into smaller pieces
+✅ YES: "Find the reference region" THEN "For each other region..." (separate steps)
+✅ YES: Making complex operations simpler by splitting them
 
-**HOW TO REFINE:**
-- Look at visual differences in the images
-- Identify what's missing or incorrect VISUALLY
-- Make steps more specific about WHAT to do, not HOW to implement
-- Use color names WITH numbers: "black (0)", "yellow (4)", "green (3)"
-- Break into more granular visual steps if needed
-- Keep language simple and executable
+**EXAMPLE:**
 
-**STAY VISUAL:**
-- "Find each enclosed black region" NOT "Run connected components algorithm"
-- "Fill with yellow (4)" NOT "Set pixels to value 4"
-- "The first hole", "the second hole" NOT "For i in range(n)"
+Original rule: "Move colored blocks to touch the red bar"
+Current 2 steps (FAILED):
+1. Find the red bar
+2. Move all blocks to touch it
 
-Output REFINED steps (numbered list, 3-7 VISUAL steps, NOT code)."""
+Refined to 3 steps (more granular):
+1. Identify the long red (2) bar as the anchor
+2. For each non-red colored object, determine the direction to move it toward the red bar
+3. Slide each object in that direction until it touches the red bar
+
+Refined to 4 steps (even more granular):
+1. Identify the long red (2) bar and note if it's vertical or horizontal
+2. For each non-red object, determine movement direction: horizontal if bar is vertical, vertical if bar is horizontal
+3. Move each object in that direction until adjacent to the red bar
+4. Preserve all object shapes and the red bar position
+
+**YOUR TURN:**
+Break down your original rule into {target_step_count} VISUAL, EXECUTABLE steps.
+Include color values: black (0), red (2), green (3), yellow (4), etc.
+
+**OUTPUT:**
+Numbered list of exactly {target_step_count} visual steps."""
             
             refine_response = self.call_ai(refine_prompt, refine_images)
             
@@ -634,53 +981,92 @@ Output REFINED steps (numbered list, 3-7 VISUAL steps, NOT code)."""
             
             print(f"Refined to {len(universal_steps)} steps")
             
-            # Re-validate
+            # Check if we got the expected number of steps
+            if len(universal_steps) != target_step_count:
+                print(f"⚠️  WARNING: Expected {target_step_count} steps but got {len(universal_steps)}")
+                # Continue anyway - the AI might have a good reason
+            
+            # Re-validate by executing refined steps with full context
+            print("\nRe-executing refined steps step-by-step with reasoning context...")
             validation_results = []
+            
             for idx, example in enumerate(training_examples):
-                val_input_path = str(temp_dir / f"{task_name}_val{idx+1}_input.png")
-                img_val = grid_to_image(example['input'], 30)
-                img_val.save(val_input_path)
+                print(f"  Re-validating Example {idx + 1}...")
                 
-                validate_prompt = f"""Apply these refined steps to this input.
+                # Execute refined steps step-by-step with reasoning context
+                current_grid = [row[:] for row in example['input']]
+                
+                for step_idx, step in enumerate(universal_steps):
+                    # Create image of current state
+                    current_img_path = str(temp_dir / f"{task_name}_refine_ex{idx+1}_step{step_idx}.png")
+                    img_current = grid_to_image(current_grid, 30)
+                    img_current.save(current_img_path)
+                    
+                    # Execute step WITH full reasoning context in prompt
+                    execute_prompt = f"""🖼️ **LOOK AT THE CURRENT GRID IMAGE ABOVE FIRST**
 
-STEPS:
-{chr(10).join(universal_steps)}
+**YOUR COMPLETE REASONING ANALYSIS:**
+{reasoning_analysis}
 
-Input:
-{self.format_grid(example['input'])}
+**REFINED STEPS (based on your reasoning):**
+{chr(10).join(f"{i+1}. {s}" for i, s in enumerate(universal_steps))}
 
-Apply ALL steps in order to transform this input.
+**NOW EXECUTE ONLY THIS STEP:**
+STEP {step_idx + 1} of {len(universal_steps)}:
+{step}
 
-CRITICAL EXECUTION RULES:
-- Follow each step completely - if it says "for each", do ALL of them
-- Apply steps in the exact order given
-- Do NOT remove or move cells unless steps explicitly require it
-- PRESERVE DETAILS: Keep exact shapes of objects
-- CONSISTENCY: Apply transformations IDENTICALLY to all similar objects
-- COMPLETENESS: Don't miss single-cell blocks or small details - count carefully
-- EXACT SHAPES: If copying/transforming shapes, preserve their exact dimensions
-- You MUST output a complete grid
+**BEFORE EXECUTING:**
+1. **LOOK at the IMAGE above** - this is the current state
+2. Visually identify objects/regions/patterns in the image
+3. Apply this step to what you SEE in the image
+4. Keep the full analysis and goal in mind
 
-Output the FINAL grid.
+Current grid state (IMAGE above for visual, grid data below for reference):
+{self.format_grid(current_grid)}
+
+Apply ONLY this step to the VISUAL IMAGE above.
+
+**THINK VISUALLY:**
+- Work from the IMAGE you see above
+- Remember the overall goal from the rule
+- "for each" = find ALL matching objects
+- Apply this step completely before moving to next step
+
+Output the transformed grid.
 
 FINAL GRID:
 [row1]
 [row2]
 ..."""
+                    
+                    # Execute with reasoning context in prompt
+                    response = self.call_ai(execute_prompt, [current_img_path], use_history=False)
+                    new_grid = self.parse_grid_from_response(response)
+                    
+                    if new_grid:
+                        current_grid = new_grid
                 
-                response = self.call_ai(validate_prompt, [val_input_path])
-                result_grid = self.parse_grid_from_response(response)
-                matches = result_grid == example['output'] if result_grid else False
+                # Check if final result matches expected
+                matches = current_grid == example['output'] if current_grid else False
                 
                 validation_results.append({
                     "example_number": idx + 1,
                     "success": matches,
-                    "result_grid": result_grid,
+                    "result_grid": current_grid,
                     "expected_grid": example['output']
                 })
             
             successful_validations = sum(1 for v in validation_results if v['success'])
             print(f"Re-validation: {successful_validations}/{len(training_examples)} examples passed")
+            
+            # Track this refinement iteration
+            refinement_history.append({
+                "iteration": refinement_count,
+                "steps": universal_steps,
+                "success_count": successful_validations,
+                "failed_examples": [v['example_number'] for v in validation_results if not v['success']],
+                "action": "refined"
+            })
         
         # PHASE 5: Apply to test cases
         # NOTE: AI has NEVER seen test outputs - this is TRUE blind execution!
@@ -699,12 +1085,16 @@ FINAL GRID:
                 img_test.save(test_input_path)
                 
                 for attempt in range(3):
-                    test_prompt = f"""Apply these universal steps to the test input.
+                    test_prompt = f"""**YOUR COMPLETE REASONING ANALYSIS:**
+{reasoning_analysis}
 
-UNIVERSAL STEPS:
-{chr(10).join(universal_steps)}
+**UNIVERSAL STEPS (based on your reasoning):**
+{chr(10).join(f"{i+1}. {s}" for i, s in enumerate(universal_steps))}
 
-Test Input:
+**CONTEXT:** You thoroughly analyzed this puzzle type. Now apply your steps to this test input,
+keeping in mind the rule and variations you identified.
+
+Test Input (see IMAGE above):
 {self.format_grid(test_ex['input'])}
 
 Apply ALL steps in order to transform this input.
@@ -726,7 +1116,8 @@ FINAL GRID:
 [row2]
 ..."""
                     
-                    response = self.call_ai(test_prompt, [test_input_path])
+                    # Execute WITHOUT history - only gets current prompt
+                    response = self.call_ai(test_prompt, [test_input_path], use_history=False)
                     result_grid = self.parse_grid_from_response(response)
                     matches = result_grid == test_ex['output'] if result_grid else False
                     
@@ -749,18 +1140,29 @@ FINAL GRID:
         # Save results
         test_success = sum(1 for t in test_results if t['success']) if test_results else 0
         
+        # Determine success status
+        training_complete = (successful_validations == len(training_examples))
+        test_complete = (test_success == len(test_examples)) if test_examples else False
+        overall_success = training_complete and (test_success > 0 if test_examples else True)
+        
         results = {
             "task_name": task_name,
             "approach": "batch_visual_structured_reasoning",
             "reasoning_analysis": reasoning_analysis,
+            "color_mapping": color_mapping,  # Verified color values
+            "color_values_present": color_values_sorted,  # All numeric values used
             "universal_steps": universal_steps,
             "training_examples": len(training_examples),
             "training_success": successful_validations,
+            "training_complete": training_complete,  # All training examples passed
             "refinement_iterations": refinement_count,
+            "refinement_history": refinement_history,  # Full refinement tracking
             "booklets": booklet_data,
             "test_results": test_results,
             "test_success": test_success,
+            "test_complete": test_complete,  # All test cases passed
             "total_test_cases": len(test_examples),
+            "overall_success": overall_success,  # Training complete + at least 1 test passed
             "generated_at": datetime.now().isoformat()
         }
         

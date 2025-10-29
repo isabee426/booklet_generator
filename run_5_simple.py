@@ -9,9 +9,9 @@ from pathlib import Path
 
 def main():
     # Just ONE simple puzzle to start
-    puzzle = "00d62c1b"
+    puzzle = "137f0df0"  # Random puzzle
     
-    task_file = Path("..") / "saturn-arc" / "ARC-AGI-2" / "ARC-AGI-1" / "data" / "training" / f"{puzzle}.json"
+    task_file = Path("..") / "saturn-arc" / "ARC-AGI-2" / "ARC-AGI-2" / "data" / "training" / f"{puzzle}.json"
     
     if not task_file.exists():
         print(f"❌ Puzzle {puzzle} not found at {task_file}")

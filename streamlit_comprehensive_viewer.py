@@ -100,7 +100,7 @@ def load_booklet_metadata(booklet_path):
             return json.load(f)
     return None
 
-def show_booklet_comparison_table(booklet_path):
+def show_booklet_comparison_table(booklet_path, unique_id=""):
     """Show step-by-step comparison table"""
     meta = load_booklet_metadata(booklet_path)
     if not meta:
@@ -145,7 +145,8 @@ def show_booklet_comparison_table(booklet_path):
         # Visual comparison
         st.subheader("Visual Comparison")
         step_to_view = st.selectbox("Select step:", range(len(meta['steps'])), 
-                                     format_func=lambda x: f"Step {x+1}")
+                                     format_func=lambda x: f"Step {x+1}",
+                                     key=f"step_select_{unique_id}_{meta.get('task_name', 'unknown')}")
         
         if step_to_view is not None:
             step = meta['steps'][step_to_view]
@@ -157,7 +158,7 @@ def show_booklet_comparison_table(booklet_path):
                 st.write("**Model Output**")
                 model_img = booklet_dir / f"step_{step_num:03d}.png"
                 if model_img.exists():
-                    st.image(str(model_img), use_column_width=True)
+                    st.image(str(model_img), use_container_width=True)
                 else:
                     st.warning("Image not found")
             
@@ -165,7 +166,7 @@ def show_booklet_comparison_table(booklet_path):
                 st.write("**Expected Output**")
                 expected_img = booklet_dir / f"step_{step_num:03d}_expected.png"
                 if expected_img.exists():
-                    st.image(str(expected_img), use_column_width=True)
+                    st.image(str(expected_img), use_container_width=True)
                 else:
                     st.success("✅ Model matched target!")
             
@@ -186,12 +187,12 @@ def show_booklet_comparison_table(booklet_path):
                 with col1:
                     model_img = booklet_dir / f"step_{step['step_number']:03d}.png"
                     if model_img.exists():
-                        st.image(str(model_img), caption="Model", use_column_width=True)
+                        st.image(str(model_img), caption="Model", use_container_width=True)
                 
                 with col2:
                     expected_img = booklet_dir / f"step_{step['step_number']:03d}_expected.png"
                     if expected_img.exists():
-                        st.image(str(expected_img), caption="Expected", use_column_width=True)
+                        st.image(str(expected_img), caption="Expected", use_container_width=True)
     
     with tab3:
         st.header("Input and Target Output")
@@ -201,13 +202,13 @@ def show_booklet_comparison_table(booklet_path):
             st.subheader("Input")
             input_img = booklet_dir / "input.png"
             if input_img.exists():
-                st.image(str(input_img), use_column_width=True)
+                st.image(str(input_img), use_container_width=True)
         
         with col2:
             st.subheader("Target Output")
             target_img = booklet_dir / "target_output.png"
             if target_img.exists():
-                st.image(str(target_img), use_column_width=True)
+                st.image(str(target_img), use_container_width=True)
 
 def main():
     st.title("📚 Comprehensive ARC Booklet Viewer")
@@ -271,7 +272,7 @@ python arc-booklet-refiner.py <task_file>
         show_ensemble_booklets(all_booklets['ensemble'])
 
 def show_batch_visual_booklets(booklets):
-    """Show batch visual booklets organized by task and run"""
+    """Show batch visual booklets organized by success, then task and run"""
     st.header("🎨 Batch Visual Booklets")
     st.markdown("*Structured reasoning across all training examples*")
     
@@ -279,9 +280,65 @@ def show_batch_visual_booklets(booklets):
         st.info("No batch visual booklets found")
         return
     
+    # Load full metadata for each booklet to get success status
+    booklets_with_status = []
+    for b in booklets:
+        booklet_path = Path(b['path'])
+        if (booklet_path / "batch_results.json").exists():
+            with open(booklet_path / "batch_results.json", 'r') as f:
+                metadata = json.load(f)
+                b['overall_success'] = metadata.get('overall_success', False)
+                b['training_complete'] = metadata.get('training_complete', False)
+                b['test_complete'] = metadata.get('test_complete', False)
+        else:
+            b['overall_success'] = False
+            b['training_complete'] = False
+            b['test_complete'] = False
+        booklets_with_status.append(b)
+    
+    # Group by success status
+    successful = [b for b in booklets_with_status if b['overall_success']]
+    partial = [b for b in booklets_with_status if b['training_complete'] and not b['overall_success']]
+    failed = [b for b in booklets_with_status if not b['training_complete']]
+    
+    # Display stats
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Runs", len(booklets))
+    with col2:
+        st.metric("✅ Successful", len(successful), help="Training complete + test passed")
+    with col3:
+        st.metric("⚠️ Partial", len(partial), help="Training complete, test failed")
+    with col4:
+        st.metric("❌ Failed", len(failed), help="Training incomplete")
+    
+    st.divider()
+    
+    # Group selector
+    group_filter = st.radio(
+        "Filter by status:",
+        ["All", "✅ Successful Only", "⚠️ Partial Only", "❌ Failed Only"],
+        horizontal=True,
+        key="batch_status_filter"
+    )
+    
+    # Filter booklets based on selection
+    if group_filter == "✅ Successful Only":
+        filtered_booklets = successful
+    elif group_filter == "⚠️ Partial Only":
+        filtered_booklets = partial
+    elif group_filter == "❌ Failed Only":
+        filtered_booklets = failed
+    else:
+        filtered_booklets = booklets_with_status
+    
+    if not filtered_booklets:
+        st.info(f"No booklets in category: {group_filter}")
+        return
+    
     # Group by task
     by_task = {}
-    for b in booklets:
+    for b in filtered_booklets:
         task = b['task_name']
         if task not in by_task:
             by_task[task] = []
@@ -293,7 +350,7 @@ def show_batch_visual_booklets(booklets):
     
     # Task selector
     task_names = list(by_task.keys())
-    selected_task = st.selectbox("Select Task:", task_names)
+    selected_task = st.selectbox("Select Task:", task_names, key="batch_task_selector")
     
     if selected_task:
         runs = by_task[selected_task]
@@ -303,19 +360,102 @@ def show_batch_visual_booklets(booklets):
         
         # Show runs
         for run_idx, run in enumerate(runs):
-            with st.expander(f"Run {run_idx + 1} - {run['timestamp']} - Train: {run['training_success']}/{run['training_total']}, Test: {run['test_success']}/{run['test_total']}", 
+            # Determine status icon
+            if run.get('overall_success', False):
+                status_icon = "✅"
+            elif run.get('training_complete', False):
+                status_icon = "⚠️"
+            else:
+                status_icon = "❌"
+            
+            with st.expander(f"{status_icon} Run {run_idx + 1} - {run['timestamp']} - Train: {run['training_success']}/{run['training_total']}, Test: {run['test_success']}/{run['test_total']}", 
                            expanded=(run_idx == 0)):
                 
                 # Run stats
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3, col4, col5 = st.columns(5)
                 with col1:
-                    st.metric("Training Success", f"{run['training_success']}/{run['training_total']}")
+                    status_label = "✅ Success" if run.get('overall_success', False) else ("⚠️ Partial" if run.get('training_complete', False) else "❌ Failed")
+                    st.metric("Status", status_label)
                 with col2:
-                    st.metric("Test Success", f"{run['test_success']}/{run['test_total']}")
+                    st.metric("Training Success", f"{run['training_success']}/{run['training_total']}")
                 with col3:
-                    st.metric("Refinements", run['refinements'])
+                    st.metric("Test Success", f"{run['test_success']}/{run['test_total']}")
                 with col4:
+                    st.metric("Refinements", run['refinements'])
+                with col5:
                     st.metric("Example Booklets", len(run['example_booklets']))
+                
+                st.divider()
+                
+                # Show reasoning analysis
+                st.subheader("🧠 AI Reasoning Analysis")
+                run_path = Path(run['path'])
+                if (run_path / "batch_results.json").exists():
+                    with open(run_path / "batch_results.json", 'r') as f:
+                        batch_data = json.load(f)
+                    
+                    # Tabs for reasoning
+                    reason_tab1, reason_tab2, reason_tab3 = st.tabs(["📝 Initial Reasoning", "🔧 Refinement History", "✅ Final Steps"])
+                    
+                    with reason_tab1:
+                        # Color mapping (if available)
+                        if 'color_mapping' in batch_data:
+                            st.write("**🎨 Verified Color Mapping:**")
+                            color_map = batch_data.get('color_mapping', '')
+                            color_values = batch_data.get('color_values_present', [])
+                            
+                            if color_values:
+                                st.info(f"Color values present in puzzle: {color_values}")
+                            
+                            with st.expander("View Color Mapping Details", expanded=False):
+                                st.text(color_map)
+                            
+                            st.divider()
+                        
+                        st.write("**AI's Structured Reasoning Process:**")
+                        reasoning = batch_data.get('reasoning_analysis', 'No reasoning data')
+                        st.text_area("Full Reasoning:", reasoning, height=400, key=f"reasoning_{run_idx}")
+                    
+                    with reason_tab2:
+                        refinements = batch_data.get('refinement_iterations', 0)
+                        refine_history = batch_data.get('refinement_history', [])
+                        
+                        if refinements > 0:
+                            st.write(f"**{refinements} refinement iteration(s) performed**")
+                            st.info("Shows how steps evolved when initial execution failed")
+                            
+                            # Show each iteration in detail
+                            total_training = batch_data.get('training_examples', 0)
+                            for entry in refine_history:
+                                iter_num = entry['iteration']
+                                action_emoji = "🌱" if entry['action'] == 'initial_generation' else "🔧"
+                                success_rate = f"{entry['success_count']}/{total_training}"
+                                
+                                with st.expander(
+                                    f"{action_emoji} Iteration {iter_num}: {success_rate} succeeded - {len(entry['steps'])} steps",
+                                    expanded=(iter_num == 0)
+                                ):
+                                    st.write(f"**Success Rate:** {entry['success_count']}/{total_training} examples")
+                                    
+                                    if entry['failed_examples']:
+                                        st.write(f"**Failed Examples:** {', '.join(map(str, entry['failed_examples']))}")
+                                    else:
+                                        st.success("✅ All examples passed!")
+                                    
+                                    st.write("**Steps:**")
+                                    for i, step in enumerate(entry['steps'], 1):
+                                        st.write(f"{i}. {step}")
+                        else:
+                            st.success("✅ No refinement needed - steps worked on first try!")
+                    
+                    with reason_tab3:
+                        st.write("**Final Universal Steps:**")
+                        steps = batch_data.get('universal_steps', [])
+                        for i, step in enumerate(steps, 1):
+                            st.write(f"{i}. {step}")
+                        
+                        if refinements > 0:
+                            st.caption(f"(After {refinements} refinement iteration(s))")
                 
                 st.divider()
                 
@@ -331,7 +471,7 @@ def show_batch_visual_booklets(booklets):
                     
                     if selected_example:
                         st.divider()
-                        show_booklet_comparison_table(selected_example)
+                        show_booklet_comparison_table(selected_example, unique_id=f"run_{run_idx}")
 
 def show_single_booklets(booklets):
     """Show single example booklets"""
@@ -347,11 +487,12 @@ def show_single_booklets(booklets):
     selected = st.selectbox(
         "Select booklet:",
         sorted_booklets,
-        format_func=lambda x: f"{x['task_name']} - {x['total_steps']} steps - {x['timestamp'][:19] if len(x['timestamp']) > 19 else x['timestamp']}"
+        format_func=lambda x: f"{x['task_name']} - {x['total_steps']} steps - {x['timestamp'][:19] if len(x['timestamp']) > 19 else x['timestamp']}",
+        key="single_booklet_selector"
     )
     
     if selected:
-        show_booklet_comparison_table(selected['path'])
+        show_booklet_comparison_table(selected['path'], unique_id="single")
 
 def show_refined_booklets(booklets):
     """Show refined booklets"""
@@ -367,7 +508,8 @@ def show_refined_booklets(booklets):
     selected = st.selectbox(
         "Select booklet:",
         sorted_booklets,
-        format_func=lambda x: f"{x['task_name']} - {x['refinements']} refinements - {x['timestamp'][:19] if len(x['timestamp']) > 19 else x['timestamp']}"
+        format_func=lambda x: f"{x['task_name']} - {x['refinements']} refinements - {x['timestamp'][:19] if len(x['timestamp']) > 19 else x['timestamp']}",
+        key="refined_booklet_selector"
     )
     
     if selected:
