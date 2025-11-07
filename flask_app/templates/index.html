@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARC Puzzle Creator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🧩 ARC Puzzle Creator</h1>
+            <p class="subtitle">Create visual traces for training and testing examples</p>
+            <div class="header-nav">
+                <a href="/viewer" class="btn-header">📚 View Completed Booklets</a>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <section class="sidebar-section">
+                    <h3>📚 Dataset</h3>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="dataset" value="training" checked>
+                            Training
+                        </label>
+                        <label>
+                            <input type="radio" name="dataset" value="evaluation">
+                            Evaluation
+                        </label>
+                    </div>
+                </section>
+
+                <section class="sidebar-section">
+                    <h3>🎯 Puzzle</h3>
+                    <input type="text" id="search" placeholder="Search puzzle ID..." class="search-box">
+                    <select id="puzzle-select" class="puzzle-select">
+                        <option>Loading puzzles...</option>
+                    </select>
+                    <div class="nav-buttons">
+                        <button id="btn-first" title="First">⏮️</button>
+                        <button id="btn-prev" title="Previous">◀️</button>
+                        <button id="btn-next" title="Next">▶️</button>
+                    </div>
+                    <div id="current-puzzle-info" class="puzzle-info"></div>
+                </section>
+
+                <section class="sidebar-section">
+                    <h3>📝 Example</h3>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="example-type" value="training" checked>
+                            Training
+                        </label>
+                        <label>
+                            <input type="radio" name="example-type" value="testing">
+                            Testing
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Example #:</label>
+                        <select id="example-num" class="example-select">
+                            <option value="1">1</option>
+                        </select>
+                    </div>
+                    <div id="steps-info" class="steps-info"></div>
+                    <button id="btn-manage-steps" class="btn-manage-steps" style="display: none;">
+                        🔧 Manage Steps
+                    </button>
+                </section>
+
+                <section class="sidebar-section">
+                    <h3>📋 Universal Steps</h3>
+                    <div id="universal-steps-list" class="universal-steps-list">
+                        <p style="color: #bdc3c7; font-size: 0.9rem;">Loading...</p>
+                    </div>
+                </section>
+
+                <section class="sidebar-section next-step-location">
+                    <h4>Next Step Location:</h4>
+                    <code id="next-location"></code>
+                </section>
+            </aside>
+
+            <!-- Content area -->
+            <main class="content">
+                <!-- Step viewer -->
+                <section id="last-step-section" class="section" style="display: none;">
+                    <h2 class="section-title">👁️ Step Viewer</h2>
+                    <p class="info-text">📌 Click any step in the sidebar to view it here</p>
+                    <div class="last-step-box">
+                        <div class="last-step-header">
+                            <h4 id="last-step-title"></h4>
+                            <button id="toggle-last-step" class="btn-toggle">▼</button>
+                        </div>
+                        <div id="last-step-content" class="last-step-content" style="display: none;">
+                            <div class="grid-container">
+                                <h5>Step Output Grid</h5>
+                                <div id="last-step-grid" class="grid-display"></div>
+                                <p id="last-step-grid-size" class="grid-size"></p>
+                            </div>
+                            <div class="description-box">
+                                <h5>Description:</h5>
+                                <p id="last-step-description"></p>
+                                <p id="last-step-timestamp" class="step-timestamp"></p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Current example -->
+                <section class="section">
+                    <h2 class="section-title">📖 Current Example</h2>
+                    <div id="example-badge" class="example-badge"></div>
+                    <div class="grid-row">
+                        <div class="grid-container">
+                            <h3>Original Input</h3>
+                            <div id="original-input" class="grid-display"></div>
+                            <p id="original-input-size" class="grid-size"></p>
+                        </div>
+                        <div class="grid-container">
+                            <h3>Expected Output</h3>
+                            <div id="original-output" class="grid-display"></div>
+                            <p id="original-output-size" class="grid-size"></p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Drawing area -->
+                <section class="section">
+                    <h2 class="section-title">✏️ Draw Step Output</h2>
+                    <p class="info-text">💡 Draw the output grid for this step of the transformation</p>
+                    
+                    <div class="grid-editor-container">
+                        <div class="grid-controls">
+                            <div class="size-controls">
+                                <label>Height: <input type="number" id="grid-height" min="1" max="30" value="3"></label>
+                                <label>Width: <input type="number" id="grid-width" min="1" max="30" value="3"></label>
+                            </div>
+                            <div class="control-buttons">
+                                <button id="btn-resize" class="btn-small">🔄 Resize</button>
+                                <button id="btn-copy-input" class="btn-small">📋 Copy Input</button>
+                                <button id="btn-copy-output" class="btn-small">📋 Copy Expected</button>
+                                <button id="btn-copy-last-step" class="btn-small btn-copy-last-step" style="display: none;">📋 Copy Last Step</button>
+                                <button id="btn-clear" class="btn-small">🗑️ Clear</button>
+                            </div>
+                        </div>
+                        <div id="grid-editor" class="grid-editor"></div>
+                    </div>
+
+                    <!-- Color palette -->
+                    <div class="color-section">
+                        <h3>🎨 Color Selector</h3>
+                        <div id="color-palette" class="color-palette"></div>
+                        <p id="selected-color-info" class="selected-color-info"></p>
+                    </div>
+
+                    <!-- Drawing tools -->
+                    <div class="tools-section">
+                        <h3>🛠️ Drawing Tools</h3>
+                        <div class="tool-buttons">
+                            <button id="tool-paint" class="tool-btn active" title="Click to paint single cells">
+                                🖌️ Paint
+                            </button>
+                            <button id="tool-fill" class="tool-btn" title="Drag to select area, then fill">
+                                🎨 Fill Area
+                            </button>
+                            <button id="tool-select" class="tool-btn" title="Drag to select, click Fill button">
+                                ✏️ Select
+                            </button>
+                        </div>
+                        <button id="btn-fill-selection" class="btn-fill-selection" style="display: none;">
+                            Fill Selection
+                        </button>
+                        <p id="tool-info" class="tool-info">Click cells to paint</p>
+                    </div>
+                </section>
+
+                <!-- Save section -->
+                <section class="section">
+                    <h2 class="section-title">💾 Save Step</h2>
+                    <div id="save-info" class="save-info"></div>
+                    <div id="edit-mode-banner" class="edit-mode-banner" style="display: none;">
+                        <strong>✏️ EDITING MODE</strong> - You are editing an existing step. Changes will update the step.
+                        <button id="btn-cancel-edit" class="btn-cancel-edit">❌ Cancel Edit (New Step)</button>
+                    </div>
+                    <div class="save-form">
+                        <div class="form-row">
+                            <div class="form-group form-group-large">
+                                <label for="step-description">
+                                    Step Description:
+                                    <button id="btn-ai-rewrite" class="btn-ai-rewrite" type="button" title="AI will rewrite to be clearer and more concise">
+                                        🤖 AI Rewrite (2-3 sentences)
+                                    </button>
+                                </label>
+                                <textarea id="step-description" rows="6" placeholder="Describe this intermediate transformation step...
+
+What changes from input to output in THIS step?
+What operation or pattern is being applied?"></textarea>
+                                <div id="ai-rewrite-status" class="ai-rewrite-status" style="display: none;"></div>
+                            </div>
+                            <div class="form-group form-group-small">
+                                <label for="step-name">Step Name:</label>
+                                <input type="text" id="step-name" placeholder="Step name...">
+                                <button id="btn-save" class="btn-primary">💾 Save Step</button>
+                                <button id="btn-edit-step" class="btn-edit-step" style="display: none;">✏️ Load to Edit</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Success message -->
+                <div id="success-message" class="success-message" style="display: none;"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Step Manager Modal -->
+    <div id="step-manager-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔧 Manage Steps</h2>
+                <button id="btn-close-manager" class="btn-close-modal">✖</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-info">Reorder, insert, or delete steps. Numbers will auto-update!</p>
+                <div id="step-manager-list" class="step-manager-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-apply-changes" class="btn-apply">💾 Apply Changes</button>
+                <button id="btn-cancel-manager" class="btn-cancel">❌ Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Completed Booklets Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/viewer.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>📚 Completed Booklets Viewer</h1>
+            <p class="subtitle">Review all your visual traces in one place</p>
+            <div class="header-nav">
+                <a href="/" class="btn-header">← Back to Creator</a>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <div class="viewer-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <section class="sidebar-section">
+                    <h3>📁 Completed Puzzles</h3>
+                    <input type="text" id="search-puzzle" placeholder="Search puzzle ID..." class="search-box">
+                    <div id="puzzle-list" class="puzzle-list">
+                        <p style="color: #bdc3c7;">Loading...</p>
+                    </div>
+                </section>
+
+                <section class="sidebar-section">
+                    <h3>📊 Current Puzzle</h3>
+                    <div id="current-puzzle-details" class="puzzle-details">
+                        <p style="color: #bdc3c7;">Select a puzzle</p>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- Content area -->
+            <main class="content">
+                <div id="booklet-display">
+                    <div class="welcome-message">
+                        <h2>👈 Select a completed puzzle from the sidebar</h2>
+                        <p>You'll see all training and testing steps in sequential order</p>
+                        <div class="welcome-features">
+                            <div class="feature-item">
+                                <span class="feature-icon">📖</span>
+                                <h3>Sequential View</h3>
+                                <p>See all steps in order</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">🎨</span>
+                                <h3>Visual Grids</h3>
+                                <p>Grid images for each step</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">✏️</span>
+                                <h3>Easy Editing</h3>
+                                <p>Jump back to edit any step</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
+</body>
+</html>
+
