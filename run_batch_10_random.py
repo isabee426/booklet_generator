@@ -26,11 +26,11 @@ def main():
     
     print(f"Found {len(all_tasks)} total training tasks")
     
-    # Randomly select 5
-    selected_tasks = random.sample(all_tasks, min(5, len(all_tasks)))
+    # Randomly select 15
+    selected_tasks = random.sample(all_tasks, min(15, len(all_tasks)))
     
     print("="*80)
-    print(f"RUNNING BATCH VISUAL GENERATOR ON 5 RANDOM TASKS")
+    print(f"RUNNING BATCH VISUAL GENERATOR ON 15 RANDOM TASKS")
     print("="*80)
     print("\nSelected tasks:")
     for i, task_file in enumerate(selected_tasks, 1):
@@ -43,7 +43,7 @@ def main():
     
     for i, task_file in enumerate(selected_tasks, 1):
         print(f"\n{'='*80}")
-        print(f"TASK {i}/5: {task_file.stem}")
+        print(f"TASK {i}/15: {task_file.stem}")
         print(f"{'='*80}\n")
         
         # Run the generator
@@ -60,7 +60,7 @@ def main():
             print(f"\n❌ {task_file.stem} - FAILED (exit code {result.returncode})")
             failed += 1
         
-        print(f"\nProgress: {i}/5 complete ({successful} successful, {failed} failed)")
+        print(f"\nProgress: {i}/15 complete ({successful} successful, {failed} failed)")
     
     # Final summary
     print("\n" + "="*80)

@@ -1,0 +1,37 @@
+[
+  {
+    "step_num": 1,
+    "step_name": "Step 1",
+    "description": "In this step, maintain the same dimensions for the output grid as those of the input grid.",
+    "last_updated": "2025-11-02T19:32:58.458019",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 2,
+    "step_name": "Step 2",
+    "description": "Building on Step 1, transfer the contents of the input grid directly into the output grid.",
+    "last_updated": "2025-11-02T19:33:01.612796",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 3,
+    "step_name": "Step 3",
+    "description": "In Step 3, we focus on the bottom right group of cells in the ring-like shape, which will remain unchanged from the input grid. For clarity, the section of cells that remain unchanged is highlighted temporarily in a color not present in the rest of the puzzle.",
+    "last_updated": "2025-11-02T19:33:27.507957",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 4,
+    "step_name": "Step 4",
+    "description": "In this step, move all cells that are not part of the highlighted bottom right section one cell to the right. This transformation maintains the position and color of the cells in the bottom left of each ring, as established in Step 3.",
+    "last_updated": "2025-11-02T19:33:44.625723",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 5,
+    "step_name": "Step 5",
+    "description": "In Step 5, we revert the color(s) of the highlighted bottom right section back to their original ring color(s), as established in Step 3.",
+    "last_updated": "2025-11-02T19:33:51.385604",
+    "updated_from": "testing_01"
+  }
+]

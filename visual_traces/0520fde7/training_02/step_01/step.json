@@ -1,0 +1,83 @@
+{
+  "task_id": "0520fde7",
+  "example_type": "training",
+  "example_num": 2,
+  "timestamp": "2025-11-02T20:33:18.383406",
+  "step_name": "Step 1",
+  "description": "Look at the input grid. There are shapes filled with color 1, separated by a bar in color 5.",
+  "grid": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      5,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0
+    ]
+  ],
+  "original_input": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      5,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0
+    ]
+  ],
+  "original_output": [
+    [
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      2
+    ],
+    [
+      0,
+      2,
+      0
+    ]
+  ]
+}

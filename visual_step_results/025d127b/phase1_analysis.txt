@@ -1,0 +1,83 @@
+STEP 1: ANALYZE EACH EXAMPLE INDIVIDUALLY
+
+Example 1 (Input → Output, grid 8×9)
+- Input objects (by color):
+  - color 0: background everywhere.
+  - color 8: a single diagonal loop/chain (a 1-pixel-thick ring-like shape) occupying a band across the grid (upper-left to lower-right region).
+- Output objects (by color):
+  - color 0: background everywhere.
+  - color 8: the same diagonal loop/chain in the same location.
+- What changed:
+  - Nothing meaningful changed — the color 8 object remains, same shape and position. No colors were added or removed.
+- What stayed the same:
+  - Grid dimensions (8×9) and the color 8 object’s shape and placement remained identical.
+- Why this change (or lack of change):
+  - Since there is no color 2 object present in this input, nothing gets transformed. The rule only acts on specific colors (see Example 2), so when those colors are absent the grid is left unchanged.
+
+Example 2 (Input → Output, grid 14×9)
+- Input objects (by color):
+  - color 0: background.
+  - color 6: a larger loop/chain near the top of the grid (a 1-pixel-thick ring-like shape).
+  - color 2: a smaller loop/chain near the middle/bottom of the grid (a 1-pixel-thick ring-like shape).
+- Output objects (by color):
+  - color 0: background.
+  - color 6: the same top loop unchanged in shape and position.
+  - color 2: replaced by a canonical hollow square (a 3×3 red ring with a single black pixel center).
+- What changed:
+  - color 6 object is unchanged.
+  - color 2 object is removed and replaced by a 3×3 hollow square (color 2 pixels forming a 3×3 ring with the center pixel color 0).
+- What stayed the same:
+  - Grid dimensions (14×9) and position/shape of the color 6 object.
+- Why this change:
+  - The transformation specifically normalizes any color 2 object into a standardized 3×3 hollow square (with a black center). Other colored objects (color 6, color 8) are left intact.
+
+STEP 2: COMPARE ACROSS EXAMPLES
+
+Inputs — common vs different:
+- Same in all inputs:
+  - color 0 (background) is always present.
+  - At least one loop/chain object is present in every input.
+- Different across inputs:
+  - Which non-background colors appear differs: Example 1 has only color 8; Example 2 has color 6 and color 2.
+  - Object counts and positions vary (Example 2 has two separate colored objects stacked vertically; Example 1 has a single object).
+- Why some things are consistent:
+  - The background (color 0) is always preserved because transformations operate only on specific non-zero colors. The puzzle places loop-like objects but their presence and color can vary.
+
+Outputs — common vs different:
+- Same in all outputs:
+  - Background (color 0) remains.
+  - Non-color-2 objects (colors 6 and 8) remain unchanged in position/shape.
+- Different across outputs:
+  - Only grids that contained color 2 show a change: color 2 objects are replaced by a 3×3 hollow square in the output. Inputs without color 2 remain unchanged.
+- Why the output pattern is consistent:
+  - The rule applies only to color 2 objects: they are converted to the canonical 3×3 hollow-square marker; all other colors are left unchanged.
+
+STEP 3: IDENTIFY THE TRANSFORMATION PATTERNS (by color)
+
+- Color 0 (background):
+  - Stays the same everywhere. The center of the new 3×3 hollow square is explicitly color 0 (a single black pixel), so color 0 is used to form holes and remains unchanged elsewhere.
+- Color 6:
+  - Stays unchanged (shape and position preserved). In Example 2 the magenta loop is unaffected by the transformation.
+- Color 8:
+  - Stays unchanged (shape and position preserved). In Example 1 the maroon loop is unaffected.
+- Color 2:
+  - Is transformed: any color 2 loop/cluster in the input is replaced by a canonical 3×3 hollow square (a ring of color 2 pixels with a single color 0 pixel in the center).
+  - The new 3×3 ring replaces the original color 2 object while keeping it in approximately the same location (i.e., the transformation normalizes that object to the 3×3 marker centered where the original object was).
+
+Which colors are affected and why:
+- Only color 2 is actively changed — the rule’s purpose is to standardize/redraw color 2 objects as a simple canonical marker (a 3×3 hollow square). Colors 6 and 8 are not targeted, so they remain unchanged.
+
+Causal reasoning / purpose:
+- The purpose is to replace any instance of color 2 with a compact, standardized marker (3×3 hollow square) while leaving other colored shapes intact. This produces a consistent representation for color 2 objects across different inputs.
+
+STEP 4: GRID SIZE PATTERN (use given sizes)
+- Given sizes:
+  - Example 1: Input 8×9 → Output 8×9
+  - Example 2: Input 14×9 → Output 14×9
+- Relationship between input and output sizes:
+  - Outputs are the SAME size as inputs in both examples.
+- Why this size relationship:
+  - The transformation is local (it replaces objects in-place with a canonical pattern) and does not require changing the canvas size. Maintaining dimensions preserves the positions of non-target objects and keeps alignment.
+
+STEP 5: SUMMARY OF THE GENERAL TRANSFORMATION PATTERN (with WHY)
+- The transformation leaves the background (color 0) and any objects of colors 6 or 8 unchanged in place, because the rule only targets color 2. Whenever a color 2 object appears, it is replaced in-place by a canonical 3×3 hollow square of color 2 with a single color 0 center pixel. The purpose is to standardize or mark color 2 objects with a compact marker while preserving all other elements and the original grid size. The underlying rule: "detect color 2 clusters and replace each with a centered 3×3 color-2 ring (hollow center), leaving other colors and the canvas size unchanged."

@@ -1,0 +1,9 @@
+Task ID: 0520fde7
+Example Type: testing
+Example Number: 01
+Step: 02
+Timestamp: 2025-11-02T20:35:21.891196
+Step Name: Step 2
+
+Description:
+In color 2, highlight the the first cell that the shapes on either side of the middle (color 5) bar have in common.

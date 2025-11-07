@@ -1,0 +1,30 @@
+[
+  {
+    "step_num": 1,
+    "step_name": "Step 1",
+    "description": "Maintain the dimensions of the input grid in the output grid.",
+    "last_updated": "2025-11-02T21:13:15.386543",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 2,
+    "step_name": "Step 2",
+    "description": "Copy over the object filled with color 8 from the input, retaining its position, color and shape. Do not change anything about the shape.",
+    "last_updated": "2025-11-02T21:13:24.063936",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 3,
+    "step_name": "Step 3",
+    "description": "Copy the second (color 2) shape from the input grid to the output grid. Maintain its shape, color and dimensions.",
+    "last_updated": "2025-11-02T21:31:12.764758",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 4,
+    "step_name": "Step 4",
+    "description": "Copy over the shape filled in with color 2. Keep the color, dimensions and rotation of the object consistent with the input, but move it in the direction of the other shape (color 8) until it the two shapes are touching, but not overlapped. Only move it up, down, left, or right, never diagonally or any other direction.",
+    "last_updated": "2025-11-02T21:31:21.144732",
+    "updated_from": "testing_01"
+  }
+]

@@ -1,0 +1,9 @@
+Task ID: 05f2a901
+Example Type: training
+Example Number: 01
+Step: 02
+Timestamp: 2025-11-02T21:09:26.265447
+Step Name: Step 2
+
+Description:
+Copy over the object filled with color 8 from the input, retaining its position, color and shape. Do not change anything about the shape.

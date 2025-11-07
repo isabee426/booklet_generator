@@ -1,0 +1,83 @@
+{
+  "task_id": "0520fde7",
+  "example_type": "training",
+  "example_num": 3,
+  "timestamp": "2025-11-02T20:34:29.662849",
+  "step_name": "Step 2",
+  "description": "In color 2, highlight the the first cell that the shapes on either side of the middle (color 5) bar have in common.",
+  "grid": [
+    [
+      0,
+      0,
+      1,
+      5,
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      1,
+      0,
+      5,
+      2,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      1,
+      5,
+      1,
+      0,
+      1
+    ]
+  ],
+  "original_input": [
+    [
+      0,
+      0,
+      1,
+      5,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      1,
+      0,
+      5,
+      1,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      1,
+      5,
+      1,
+      0,
+      1
+    ]
+  ],
+  "original_output": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      2
+    ]
+  ]
+}

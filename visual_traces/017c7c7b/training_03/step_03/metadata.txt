@@ -1,0 +1,9 @@
+Task ID: 017c7c7b
+Example Type: training
+Example Number: 03
+Step: 03
+Timestamp: 2025-11-02T17:56:07.358133
+Step Name: Step 3
+
+Description:
+In this step, identify the repeating pattern in color 1 that extends down the grid. In color 2, fill in the first segment of this pattern. This should be in the top section of the grid.

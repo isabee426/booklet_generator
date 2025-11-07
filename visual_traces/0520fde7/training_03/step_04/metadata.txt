@@ -1,0 +1,9 @@
+Task ID: 0520fde7
+Example Type: training
+Example Number: 03
+Step: 04
+Timestamp: 2025-11-02T20:34:48.542072
+Step Name: Step 4
+
+Description:
+Remove all remaining cells filled with color 1.

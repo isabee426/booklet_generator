@@ -1,0 +1,83 @@
+{
+  "task_id": "0520fde7",
+  "example_type": "training",
+  "example_num": 2,
+  "timestamp": "2025-11-02T20:33:43.645595",
+  "step_name": "Step 3",
+  "description": "Continue highlighting the cells the two sides have in common in color 2. There may be one or more. If there is only one, do not change the grid.",
+  "grid": [
+    [
+      1,
+      2,
+      0,
+      5,
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      2,
+      5,
+      1,
+      1,
+      2
+    ],
+    [
+      1,
+      2,
+      0,
+      5,
+      0,
+      2,
+      0
+    ]
+  ],
+  "original_input": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      5,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0
+    ]
+  ],
+  "original_output": [
+    [
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      2
+    ],
+    [
+      0,
+      2,
+      0
+    ]
+  ]
+}

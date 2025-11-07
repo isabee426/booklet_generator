@@ -1,0 +1,9 @@
+Task ID: 017c7c7b
+Example Type: training
+Example Number: 01
+Step: 01
+Timestamp: 2025-11-02T17:17:53.040292
+Step Name: Step 1
+
+Description:
+In this step, increase the number of rows in the grid by 3. For example, if the original grid is 6 rows by 3 columns, it will now expand to 9 rows by 3 columns.

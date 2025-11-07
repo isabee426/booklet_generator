@@ -1,0 +1,9 @@
+Task ID: 00d62c1b
+Example Type: training
+Example Number: 04
+Step: 02
+Timestamp: 2025-11-02T16:07:48.179534
+Step Name: Step 2
+
+Description:
+Building on Step 1, transfer all tiles that are colored 3 from the input grid to the corresponding positions in the output grid. Ensure that each tile is placed accurately to maintain the grid's structure and color distribution.

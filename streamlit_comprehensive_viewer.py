@@ -348,8 +348,10 @@ def show_batch_visual_booklets(booklets):
     for task in by_task:
         by_task[task] = sorted(by_task[task], key=lambda x: x['timestamp'], reverse=True)
     
-    # Task selector
-    task_names = list(by_task.keys())
+    # Task selector - sort tasks by most recent run (newest first)
+    task_names = sorted(by_task.keys(), 
+                       key=lambda t: by_task[t][0]['timestamp'],  # Most recent run for this task
+                       reverse=True)
     selected_task = st.selectbox("Select Task:", task_names, key="batch_task_selector")
     
     if selected_task:

@@ -1,0 +1,44 @@
+[
+  {
+    "step_num": 1,
+    "step_name": "Step 1",
+    "description": "Make the output grid the same dimensions as the input grid.",
+    "last_updated": "2025-11-02T20:06:50.794118",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 2,
+    "step_name": "Step 2",
+    "description": "Building on Step 1, transfer the central object from the input grid to the same position in the output grid. This object's shape will serve as a reference for the transformations in the following steps.",
+    "last_updated": "2025-11-02T20:07:26.382677",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 3,
+    "step_name": "Step 3",
+    "description": "Building on Step 2, transfer the remaining shapes from the input grid to the output grid. These shapes provide essential guidance for the orientation and placement of the reference shape in the subsequent transformations.",
+    "last_updated": "2025-11-02T20:07:34.711426",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 4,
+    "step_name": "Step 4",
+    "description": "In the colors of the objects surrounding the central \"reference\" shape, replicate the reference shape. Make sure it is a completion of the existing object, because the direction of this object is important to the next steps.",
+    "last_updated": "2025-11-02T20:08:13.839119",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 5,
+    "step_name": "Step 5",
+    "description": "Building on Step 4, continue to replicate the surrounding shapes in the output grid, ensuring they match the colors of the shapes next to them you just replicated. Maintain the same spacing of the first replicated shape to the reference shape and ensure the orientation of each replicated shape aligns with that of the first replicated shape. Sometimes a shape may be cut off by the border of the grid.",
+    "last_updated": "2025-11-02T20:08:23.061554",
+    "updated_from": "testing_01"
+  },
+  {
+    "step_num": 6,
+    "step_name": "Step 6",
+    "description": "Building on Step 5, continue to replicate the surrounding shapes in the output grid, ensuring that each shape matches the direction, shape, and color of the previously replicated shapes. A shape can be cut off by the border.",
+    "last_updated": "2025-11-02T20:08:28.477857",
+    "updated_from": "testing_01"
+  }
+]

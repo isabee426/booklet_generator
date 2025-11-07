@@ -1,0 +1,9 @@
+Task ID: 045e512c
+Example Type: training
+Example Number: 02
+Step: 04
+Timestamp: 2025-11-02T20:01:43.774434
+Step Name: Step 4
+
+Description:
+In the colors of the objects surrounding the central "reference" shape, replicate the reference shape. Make sure it is a completion of the existing object, because the direction of this object is important to the next steps.

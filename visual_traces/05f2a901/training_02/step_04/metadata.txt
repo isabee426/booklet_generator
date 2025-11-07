@@ -1,0 +1,9 @@
+Task ID: 05f2a901
+Example Type: training
+Example Number: 02
+Step: 04
+Timestamp: 2025-11-02T21:12:49.770177
+Step Name: Step 3
+
+Description:
+Copy over the shape filled in with color 2. Keep the color, dimensions and rotation of the object consistent with the input, but move it in the direction of the other shape (color 8) until it the two shapes are touching, but not overlapped. Only move it up, down, left, or right, never diagonally or any other direction.

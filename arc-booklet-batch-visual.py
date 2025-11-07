@@ -41,6 +41,19 @@ from arc_visualizer import grid_to_image
 
 
 class ARCBatchVisualGenerator:
+    # Forbidden algorithmic/programming terms
+    FORBIDDEN_TERMS = [
+        'bfs', 'dfs', 'flood fill', 'flood-fill', 'graph', 'traversal',
+        'visited', 'visit', 'array', 'allocate', 'loop', 'iterate',
+        'index', 'coordinate', 'x-coordinate', 'y-coordinate', 'x coordinate', 'y coordinate',
+        'center gap', 'mode', 'majority', 'segment', 'compute', 'calculate',
+        'arrange', 'arrangement', 'alignment', 'matrix', 'buffer',
+        'touches_border', 'border flag', 'boolean', 'flag',
+        'for i in', 'while', 'if then else', 'function', 'procedure',
+        'compress', 'decompress', 'encode', 'decode', 'hash',
+        'stack', 'queue', 'heap', 'tree', 'node', 'edge'
+    ]
+    
     def __init__(self):
         """Initialize the batch visual generator"""
         self.api_key = os.getenv("OPENAI_API_KEY")
@@ -94,6 +107,21 @@ class ARCBatchVisualGenerator:
         )
         
         return response.choices[0].message.content
+    
+    def check_forbidden_terms(self, text: str) -> tuple[bool, list]:
+        """Check if text contains forbidden algorithmic terms
+        
+        Returns:
+            (has_forbidden, list_of_found_terms)
+        """
+        text_lower = text.lower()
+        found_terms = []
+        
+        for term in self.FORBIDDEN_TERMS:
+            if term in text_lower:
+                found_terms.append(term)
+        
+        return (len(found_terms) > 0, found_terms)
     
     def parse_grid_from_response(self, response: str) -> Optional[List[List[int]]]:
         """Parse grid from AI response with multiple fallback strategies"""
@@ -462,7 +490,7 @@ Steps:
 2. For each non-red colored block, slide it toward the red bar until touching
 3. Preserve all shapes and colors
 
-**COMPLEX RULE (5-8 steps) - NO ALGORITHMS:**
+**COMPLEX RULE (6-8 steps) - NO ALGORITHMS:**
 Rule: "Fill black regions enclosed by green with yellow"
 
 ❌ WRONG (algorithmic):
@@ -471,14 +499,13 @@ Rule: "Fill black regions enclosed by green with yellow"
 3. Check touches_border flag
 4. Fill if enclosed
 
-✅ RIGHT (visual breakdown):
-1. Find all separate black (0) regions in the image
-2. For each black region, visually trace its boundary
-3. Check: Does any part of this region touch the image border? (look at edges)
-4. If the region does NOT touch the border, it is enclosed
+✅ RIGHT (visual breakdown with preservation first):
+1. Preserve all green (3) pixels and the image border - do not modify these
+2. Find all separate black (0) regions in the image
+3. For each black region, visually check if any part touches the image edge
+4. If the region does NOT touch the edge, it is enclosed
 5. For each enclosed region, fill every pixel of that region with yellow (4)
-6. Keep all green (3) pixels unchanged
-7. Keep border-touching black (0) pixels unchanged
+6. Keep all border-touching black (0) pixels unchanged (as identified in step 3)
 
 **CRITICAL REQUIREMENTS:**
 1. Base steps DIRECTLY on your hypothesis (don't add complexity!)
@@ -575,10 +602,11 @@ BAD (Too sequential for variable count):
 
 **GOOD EXAMPLES:**
 
-Example A (Repeatable pattern with variable count):
-'1. Find all black (0) regions that are completely enclosed by green (3) pixels (not touching image border)
- 2. For each found region, fill every pixel of that region with yellow (4)
- 3. Keep all green (3) pixels and border-touching black (0) pixels unchanged'
+Example A (Repeatable pattern with variable count - starts with preservation):
+'1. Preserve all green (3) pixels - do not modify them
+ 2. Find all black (0) regions that are completely enclosed by green (3) pixels (not touching image border)
+ 3. For each found region, fill every pixel of that region with yellow (4)
+ 4. Keep border-touching black (0) pixels unchanged'
 
 Example B (Reference object + repeatable):
 '1. Identify the bottom row as color sequence reference: red (2), blue (1), yellow (4), green (3)
@@ -598,36 +626,64 @@ Example E (Partial transformation with measurements):
  2. Leave the remaining bottom portion of each shape as red (2)
  3. Preserve all other colors unchanged'
 
-**BAD EXAMPLES (Don't do this):**
-'1. Fill first region, fill second region, fill third region...' ❌ (too sequential - what if there are 10 regions?)
-'1. For each region, process it' ❌ (too vague - process HOW?)
-'1. Draw all the bridges' ❌ (too vague - which bridges? how?)
-'1. Set cell [2,3] to value 4' ❌ (coordinates, not visual)
-'1. Run BFS to find connected components' ❌ (algorithm, not visual action)
-'1. Allocate visited array and iterate...' ❌ (programming, not instruction)
-'1. Scan top to bottom, left to right, for each pixel check if...' ❌ (implementation details)
+🚨 **FORBIDDEN ALGORITHMIC TERMS:**
+BFS, DFS, flood-fill, visited, array, loop, index, coordinate, mode, compute, arrange, segment, touches_border, for i in, allocate, boolean, flag
 
-**ABSOLUTELY FORBIDDEN:**
-❌ NO algorithms: BFS, DFS, flood fill algorithms, graph traversal
-❌ NO programming: loops, arrays, visited maps, mode calculations, "for i in range", "while touching"
-❌ NO implementation details: "if touches_border is false then...", "allocate array", "mark visited"
-❌ NO variables or flags: "touches_border", "visited[h][w]", "mode of pixels"
-❌ Stay HUMAN-READABLE: A person should understand without coding knowledge
+**IF YOU USE ANY FORBIDDEN TERM → Your steps will be REJECTED and regenerated!**
 
-**IF YOU'RE TEMPTED TO WRITE AN ALGORITHM:**
-→ STOP! Break it into MORE visual steps instead (use 6-8 steps if needed)
+---
+
+**COMMON PUZZLE FAMILIES - WRONG vs RIGHT:**
+
+**A) Enclosed Fill (e.g., fill black regions enclosed by green with yellow)**
+❌ WRONG: "1. Run BFS on black pixels. 2. Check touches_border flag. 3. Fill if enclosed."
+✅ RIGHT: "1. Preserve green (3). 2. Find all black (0) regions. 3. For each region, check if it touches image edge. 4. Fill non-touching regions with yellow (4)."
+
+**B) Extend to Bar (e.g., move objects to touch red bar)**
+❌ WRONG: "1. Calculate distance to bar. 2. Translate by vector. 3. Stop when adjacent."
+✅ RIGHT: "1. Preserve red (2) bar. 2. Find each non-red object. 3. Slide it toward the bar. 4. Stop when touching."
+
+**C) Remove 1×1 Islands (e.g., delete isolated single pixels)**
+❌ WRONG: "1. For each pixel, check 4-neighbors. 2. If no same-color neighbor, delete."
+✅ RIGHT: "1. Preserve multi-pixel objects. 2. Find all single isolated pixels (no neighbors of same color). 3. Recolor each to black (0)."
+
+**D) Cross in Rectangle (e.g., draw red cross through orange block)**
+❌ WRONG: "1. Compute center coordinates. 2. Set row[center_y] = red. 3. Set col[center_x] = red."
+✅ RIGHT: "1. Preserve background. 2. Find the orange block's center row (middle row visually). 3. Recolor that row to red (2). 4. Find center column. 5. Recolor to red (2). 6. Add blue (1) at cross ends."
+
+**KEY PRINCIPLE:** Use MORE visual steps, NEVER write code!
+
+---
+
+---
 
 **YOUR TURN - TRANSLATE YOUR HYPOTHESIS:**
 
-Your hypothesis was: [insert your hypothesis from above]
+🧠 **THINK LIKE AN EXPERT HUMAN VISUAL PUZZLE SOLVER**
+You're explaining to another human looking at the images. Use language they'd understand.
+
+Your hypothesis was: [your validated rule from above]
 
 Now translate it into 2-8 steps (use MORE steps for complex rules):
-1. WHAT to find: [describe visually with verified color values]
-2. HOW to check/identify: [if complex, break this into multiple steps]
-3. WHAT to do: [use "for each" if count varies]
-4. WHAT to preserve: [what stays unchanged]
 
-Remember: 8 visual steps > 3 algorithmic steps!
+**🚨 STEP 1 MUST identify what to PRESERVE/NOT TOUCH!**
+
+Structure your steps like this:
+STEP 1: Identify what to PRESERVE/NOT TOUCH [list cells/colors that stay unchanged]
+STEP 2-N: The actual transformation steps
+
+Example:
+1. Preserve all green (3) pixels and any black (0) pixels touching the border - do not modify these
+2. Find all black (0) regions that don't touch the border
+3. For each enclosed black region, fill it completely with yellow (4)
+
+Template:
+1. WHAT to preserve: [describe cells/colors that must NOT change - be explicit!]
+2. WHAT to find: [describe visually with verified color values]
+3. HOW to check/identify: [if complex, break this into multiple steps]
+4. WHAT to do: [use "for each" if count varies]
+
+Remember: Starting with preservation prevents accidental modifications!
 
 **DO NOT:**
 - Add BFS/DFS/algorithms
@@ -636,16 +692,23 @@ Remember: 8 visual steps > 3 algorithmic steps!
 - Make it more complex than your hypothesis
 
 **OUTPUT FORMAT:**
-Numbered list, 2-4 VISUAL steps that DIRECTLY translate your hypothesis.
+Numbered list, 2-8 VISUAL steps that DIRECTLY translate your hypothesis.
+
+**🚨 STEP 1 MUST identify what to PRESERVE/NOT TOUCH!**
+Example: "1. Preserve all green (3) pixels - do not modify them"
+
+Then add transformation steps.
 Use "for each" for repeatable patterns.
-Include color values: black (0), green (3), yellow (4), etc.
+Include verified color values from mapping above.
 
 **MANDATORY FINAL CHECK BEFORE SUBMITTING:**
 After you write your steps, ask yourself:
-1. "Do these steps DIRECTLY translate my hypothesis/rule?"
-2. "Did I add any complexity that wasn't in my original rule?"
-3. "Would these steps produce the EXACT outputs I saw?"
-4. "Am I using 'for each' to handle variation in object count?"
+1. "Does step 1 explicitly say what NOT to change?"
+2. "Do these steps DIRECTLY translate my hypothesis/rule?"
+3. "Did I add any complexity that wasn't in my original rule?"
+4. "Would these steps produce the EXACT outputs I saw?"
+5. "Am I using correct color values from the verified mapping?"
+6. "Am I using 'for each' to handle variation in object count?"
 
 If ANY answer is "no", REVISE the steps to match your hypothesis EXACTLY."""
         
@@ -664,14 +727,70 @@ If ANY answer is "no", REVISE the steps to match your hypothesis EXACTLY."""
             except:
                 print(f"  {i}. [Step {i}]")
         
-        # VERIFICATION: Check if steps align with the rule
-        # DISABLED FOR TESTING - Was making steps worse by forcing oversimplification
-        # print("\nVerifying steps match the validated rule...")
-        # verification = self.call_ai(verify_prompt, [])
-        # if "MISMATCH" in verification.upper():
-        #     ... regenerate steps ...
+        # FORBIDDEN TERM CHECK - Auto-regenerate if algorithmic language detected
+        steps_text = '\n'.join(universal_steps)
+        has_forbidden, forbidden_found = self.check_forbidden_terms(steps_text)
         
-        print("\n[Verification disabled for testing - using initial generated steps]")
+        if has_forbidden:
+            print(f"\n🚨 ALGORITHMIC LANGUAGE DETECTED: {', '.join(set(forbidden_found))}")
+            print("Forcing regeneration with pure visual steps...")
+            
+            regenerate_prompt = f"""Your steps contain ALGORITHMIC/PROGRAMMING language that is FORBIDDEN:
+Detected terms: {', '.join(set(forbidden_found))}
+
+**YOUR STEPS (REJECTED):**
+{chr(10).join(f"{i+1}. {s}" for i, s in enumerate(universal_steps))}
+
+**WHY REJECTED:** These read like code/algorithms, not visual instructions for a human.
+
+**THINK LIKE AN EXPERT HUMAN VISUAL PUZZLE SOLVER:**
+- What would you SEE in the image?
+- What visual actions would you take step-by-step?
+- NO programming concepts - pretend you're instructing someone looking at a picture
+
+**FORBIDDEN TERMS YOU MUST AVOID:**
+{', '.join(self.FORBIDDEN_TERMS[:20])}... (and others)
+
+**YOUR COMPLETE REASONING (for reference):**
+{reasoning_analysis}
+
+**VERIFIED COLOR MAPPING:**
+{color_mapping}
+
+**TASK: Rewrite as 2-8 PURE VISUAL STEPS**
+
+Rules:
+1. Step 1 MUST identify what to preserve/not touch
+2. Use ONLY visual, spatial language a human would understand
+3. Use verified numeric color values from mapping
+4. Break complex actions into MORE steps (up to 8 steps is fine!)
+5. Replace "compute" → "look at", "coordinate" → "position", "segment" → "part"
+
+**OUTPUT:** Numbered list of 2-8 visual steps (NO algorithmic terms!)"""
+            
+            steps_response = self.call_ai(regenerate_prompt, all_images_with_outputs)
+            
+            # Re-parse
+            universal_steps = []
+            for line in steps_response.split('\n'):
+                if line.strip() and (line.strip()[0].isdigit() or line.strip().startswith('-')):
+                    universal_steps.append(line.strip())
+            
+            print(f"Regenerated {len(universal_steps)} steps:")
+            for i, step in enumerate(universal_steps, 1):
+                try:
+                    print(f"  {i}. {step[:80]}{'...' if len(step) > 80 else ''}")
+                except:
+                    print(f"  {i}. [Step {i}]")
+            
+            # Check again (warn if still present, but continue)
+            steps_text = '\n'.join(universal_steps)
+            has_forbidden2, forbidden_found2 = self.check_forbidden_terms(steps_text)
+            if has_forbidden2:
+                print(f"⚠️  WARNING: Still found algorithmic terms: {', '.join(set(forbidden_found2))}")
+                print("Continuing anyway - may affect execution quality")
+        else:
+            print("✅ No forbidden algorithmic terms detected")
         
         # PHASE 3: Generate step-by-step booklets for each training example
         print("\nPhase 3: Generating Step-by-Step Booklets...")
@@ -929,22 +1048,19 @@ Review your full reasoning above to understand:
 - Your validated hypothesis and how you tested it
 - **Most importantly: Use the CORRECT color values from the verified mapping**
 
+🧠 **THINK LIKE AN EXPERT HUMAN VISUAL PUZZLE SOLVER**
+You're refining steps to be clearer for someone looking at images.
+
 **REFINEMENT STRATEGY:**
-- Go back to your original rule/hypothesis
-- Break it down into {target_step_count} smaller, more specific visual actions
-- Each step should be EASIER to execute than before
-- Make implicit operations explicit
+- Go back to your original rule
+- Break it into {target_step_count} smaller, VISUAL actions
+- Make each step easier to see/execute in the image
+- Make implicit visual checks explicit
 
-**CRITICAL - DO NOT WRITE ALGORITHMS:**
-❌ NO: "Allocate boolean visited array"
-❌ NO: "Run BFS/DFS traversal"
-❌ NO: "Calculate mode of border pixels"
-❌ NO: "If touches_border is false then..."
-❌ NO: Programming/implementation details
+🚨 **FORBIDDEN TERMS (will cause failure):**
+BFS, DFS, visited, array, coordinate, mode, compute, arrange, segment, touches_border, allocate, boolean
 
-✅ YES: Visual, high-level actions broken into smaller pieces
-✅ YES: "Find the reference region" THEN "For each other region..." (separate steps)
-✅ YES: Making complex operations simpler by splitting them
+**If tempted to use forbidden terms → Add MORE visual steps instead!**
 
 **EXAMPLE:**
 
@@ -966,10 +1082,14 @@ Refined to 4 steps (even more granular):
 
 **YOUR TURN:**
 Break down your original rule into {target_step_count} VISUAL, EXECUTABLE steps.
+
+**🚨 IMPORTANT: START with what to PRESERVE/NOT TOUCH!**
+Step 1 should identify cells/colors that must stay unchanged.
+
 Include color values: black (0), red (2), green (3), yellow (4), etc.
 
 **OUTPUT:**
-Numbered list of exactly {target_step_count} visual steps."""
+Numbered list of exactly {target_step_count} visual steps (starting with preservation)."""
             
             refine_response = self.call_ai(refine_prompt, refine_images)
             
@@ -984,7 +1104,15 @@ Numbered list of exactly {target_step_count} visual steps."""
             # Check if we got the expected number of steps
             if len(universal_steps) != target_step_count:
                 print(f"⚠️  WARNING: Expected {target_step_count} steps but got {len(universal_steps)}")
-                # Continue anyway - the AI might have a good reason
+            
+            # Check for forbidden terms in refined steps
+            refined_text = '\n'.join(universal_steps)
+            has_forbidden_refine, forbidden_refine = self.check_forbidden_terms(refined_text)
+            if has_forbidden_refine:
+                print(f"🚨 REFINED STEPS still contain algorithmic terms: {', '.join(set(forbidden_refine))}")
+                print("⚠️  Execution may fail due to algorithmic language")
+            else:
+                print("✅ Refined steps are clean (no algorithmic terms)")
             
             # Re-validate by executing refined steps with full context
             print("\nRe-executing refined steps step-by-step with reasoning context...")

@@ -1,0 +1,9 @@
+Task ID: 017c7c7b
+Example Type: testing
+Example Number: 01
+Step: 04
+Timestamp: 2025-11-02T19:02:41.396818
+Step Name: Step 4
+
+Description:
+Building on the pattern established in Step 3, identify the second segment of the repeating pattern, which is filled in color 1 below the segment filled with color 2.  Fill in this second segment with color 2 in the top section of the grid, ensuring it aligns with the previously colored segment.

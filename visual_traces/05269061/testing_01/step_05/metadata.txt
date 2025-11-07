@@ -1,0 +1,9 @@
+Task ID: 05269061
+Example Type: testing
+Example Number: 01
+Step: 05
+Timestamp: 2025-11-02T21:05:59.668051
+Step Name: Step 5
+
+Description:
+Copy over the second, middle diagonal in the input to the output grid.

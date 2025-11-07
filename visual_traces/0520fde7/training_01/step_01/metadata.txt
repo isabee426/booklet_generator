@@ -1,0 +1,9 @@
+Task ID: 0520fde7
+Example Type: training
+Example Number: 01
+Step: 01
+Timestamp: 2025-11-02T20:21:00.240356
+Step Name: Step 1
+
+Description:
+Look at the input grid. There are shapes filled with color 1, separated by a bar in color 5.

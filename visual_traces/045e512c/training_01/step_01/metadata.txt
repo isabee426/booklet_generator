@@ -1,0 +1,9 @@
+Task ID: 045e512c
+Example Type: training
+Example Number: 01
+Step: 01
+Timestamp: 2025-11-02T19:35:23.599550
+Step Name: Step 1
+
+Description:
+Make the output grid the same dimensions as the input grid.

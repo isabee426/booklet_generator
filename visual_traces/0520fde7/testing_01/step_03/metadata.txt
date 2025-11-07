@@ -1,0 +1,9 @@
+Task ID: 0520fde7
+Example Type: testing
+Example Number: 01
+Step: 03
+Timestamp: 2025-11-02T20:35:30.051162
+Step Name: Step 3
+
+Description:
+Continue highlighting the cells the two sides have in common in color 2. There may be one or more. If there is only one, do not change the grid.

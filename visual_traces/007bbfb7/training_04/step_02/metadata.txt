@@ -1,0 +1,9 @@
+Task ID: 007bbfb7
+Example Type: training
+Example Number: 04
+Step: 02
+Timestamp: 2025-11-02T15:53:15.010631
+Step Name: Step 2
+
+Description:
+Building on Step 1, take each cell from the input grid and replicate it into a 3x3 block in the output grid. This means that for every individual cell in the input, you will fill a corresponding 3x3 area in the output, effectively enlarging the input by three times its original size.

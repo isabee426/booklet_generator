@@ -1,0 +1,9 @@
+Task ID: 05f2a901
+Example Type: training
+Example Number: 02
+Step: 03
+Timestamp: 2025-11-02T21:20:29.255290
+Step Name: Step 4
+
+Description:
+Copy the second object from the input grid to the output grid. Maintain its shape, position, and dimension.

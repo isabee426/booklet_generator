@@ -1,0 +1,9 @@
+Task ID: 05f2a901
+Example Type: testing
+Example Number: 01
+Step: 03
+Timestamp: 2025-11-02T21:31:12.742930
+Step Name: Step 3
+
+Description:
+Copy the second (color 2) shape from the input grid to the output grid. Maintain its shape, color and dimensions.

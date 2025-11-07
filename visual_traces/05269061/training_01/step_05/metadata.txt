@@ -1,0 +1,9 @@
+Task ID: 05269061
+Example Type: training
+Example Number: 01
+Step: 05
+Timestamp: 2025-11-02T20:42:24.349217
+Step Name: Step 5
+
+Description:
+Copy over the second, middle diagonal in the input to the output grid.
