@@ -738,17 +738,8 @@ Generate the appropriate size based on the rule above.
 THIS IS AN INSTRUCTIONAL BOOKLET - EACH STEP MUST:
 1. BUILD THE OUTPUT GRID STEP-BY-STEP (never jump to final answer)
 2. Work with ONE SPECIFIC OBJECT per step (keep actions incremental)
-3. Explain WHY the step is needed (one sentence reason before/within Description)
-4. Use the HIGHLIGHT subprocess ONLY to anchor part of an object during partial transformations
-5. Show INCREMENTAL progress - small changes from previous step
-6. Be PEDAGOGICAL - teach the transformation rule through visual steps
-7. Use COPY to copy from input, HIGHLIGHT only for partial transformations
-
-❌ FORBIDDEN: "Copy entire input to output" - TOO BIG! Break it down into objects!
-❌ FORBIDDEN: Using HIGHLIGHT to copy things - Use COPY for copying!
-✅ CORRECT: "COPY: Copy color 6 loop (12 cells, rows 1-5, cols 2-6) FROM INPUT to output"
-✅ CORRECT: "COPY: Copy color 6 loop (12 cells) AND color 2 cluster (8 cells) FROM INPUT to output"
-✅ CORRECT: "HIGHLIGHT: Mark color 6 cells (12 cells) as ANCHORS - they stay fixed while color 2 transforms"
+3. Show INCREMENTAL progress - small changes from previous step
+4. Use COPY to copy from input, HIGHLIGHT only for partial transformations
 
 ⚠️⚠️⚠️ CRITICAL GRID SIZE RULE ⚠️⚠️⚠️
 
@@ -756,10 +747,6 @@ IF INPUT LARGER THAN OUTPUT (Input {len(input_grid)}×{len(input_grid[0])} > Out
 → ✅ MUST START WITH INPUT SIZE!
 → Step 1: COPY entire INPUT grid to current (current becomes input size)
 → Later steps: CROP/RESIZE down to output size
-→ Example: Input 3×7 → Output 3×3
-  * Step 1: COPY entire INPUT grid (current becomes 3×7)
-  * Step 2+: Work on the 3×7 grid
-  * Final steps: CROP to remove unwanted columns (becomes 3×3)
 
 IF INPUT SAME SIZE AS OUTPUT:
 → Start with blank OUTPUT-sized grid
@@ -772,19 +759,6 @@ IF INPUT SMALLER THAN OUTPUT:
 ⚠️ RULE SUMMARY:
 - Input > Output? MUST start with INPUT size, then crop down
 - Input ≤ Output? Start with OUTPUT size, build up
-
-WHEN TO USE EACH ACTION:
-- Objects not in grid yet? → COPY from INPUT first (can copy multiple!)
-- Current grid wrong size? → CROP/RESIZE to change dimensions
-- Input larger than output? → Either extract directly OR copy full input then CROP
-- After COPY, only PART of object changes? → Use HIGHLIGHT subprocess (MANDATORY! 3 steps)
-- After COPY, ENTIRE object moves/changes uniformly? → Use MOVE/MODIFY (1 step)
-- Objects already in grid, need to move? → Use MOVE
-- Need to fill regions? → Use FILL
-- Need to fill regions by location/pattern? → Use FILL
-
-⚠️ CRITICAL: COPY objects from INPUT BEFORE using HIGHLIGHT on them!
-You cannot highlight objects that aren't in the current grid yet!
 
 PREVIOUS STEPS:
 {prev_text}
@@ -879,136 +853,36 @@ ACTION FUNCTIONS (choose ONE per step):
    
    When to use: When grid dimensions need to change (crop, trim, expand canvas)
 
-6. HIGHLIGHT_SUBPROCESS - 3-STEP PROCESS (marks what DOESN'T change):
+6. HIGHLIGHT_SUBPROCESS - 3-STEP PROCESS (MANDATORY for partial transformations):
    
-   USE: PARTIAL TRANSFORMATIONS (temporary highlighting for anchors):
-   - MUST use when ONLY PARTS of an object/grid are modified
-   - MUST use when SOME cells stay fixed and SOME cells change
-   - This is the ONLY WAY to handle partial object modifications!
-   - 3-step process: HIGHLIGHT → TRANSFORM → UN-HIGHLIGHT
-   - Highlights are TEMPORARY and removed by final step
-
-   ⚠️⚠️⚠️ CRITICAL SEQUENCING RULE ⚠️⚠️⚠️
-   BEFORE using HIGHLIGHT, you MUST COPY objects from INPUT first!
-   - Cannot highlight objects that aren't in current grid yet!
-   - Sequence: COPY objects from INPUT → then HIGHLIGHT → then TRANSFORM → then UN-HIGHLIGHT
+   ⚠️ USE ONLY WHEN: Some cells stay fixed, some cells change (partial transformation)
+   ⚠️ DO NOT USE FOR: Copying objects (use COPY) or entire object moves/changes (use MOVE/MODIFY)
    
-   ⚠️⚠️⚠️ DO NOT USE HIGHLIGHT FOR: ⚠️⚠️⚠️
-   - Copying all objects (use COPY instead!)
-   - Entire object moves/transforms uniformly (use MOVE/MODIFY instead!)
-   
-   ⚠️⚠️⚠️ YOU MUST USE HIGHLIGHT FOR: ⚠️⚠️⚠️
-   - ONLY part of an object is modified (some cells stay, some change)
-   - SPECIFIC cells don't move during the ensuing transition
-   - Any partial transformation where anchors are needed
-   
-   ⚠️ BEFORE STEP 1: Analyze input vs expected output to identify what changes!
-   ⚠️ Highlight ONLY the SPECIFIC OBJECT CELLS that are identical in input and output (anchors)
+   CRITICAL SEQUENCE: COPY objects FROM INPUT first → then HIGHLIGHT → TRANSFORM → UN-HIGHLIGHT
    
    STEP 1: HIGHLIGHT(anchors=[SPECIFIC_POSITIONS], temp_color=X)
-   - Mark ONLY the SPECIFIC OBJECT cells that will STAY FIXED (not move/change)
-   - These must be OBJECT cells (NOT background color 0!) that are IDENTICAL in input and output
-   - Parameters:
-     * anchors: EXACT positions of SPECIFIC OBJECT cells that DON'T change
-     * temp_color: Temporary color NOT in puzzle
-   - ⚠️ DO NOT count background cells as anchors - ONLY count OBJECT cells!
-   - ⚠️ Background = most prevalent/common color filling empty space (context-dependent, not always 0)
-   - Template: "HIGHLIGHT: Input→output diff shows N SPECIFIC OBJECT cells at [exact positions] unchanged. Mark these ANCHOR cells using temp color T."
-   - Example: "HIGHLIGHT: Input→output diff shows object cells (12 cells at rows 1-5, cols 2-6) unchanged. Mark as ANCHORS using temp color 8. Remaining cells transform."
+   - Compare INPUT vs EXPECTED OUTPUT to find SPECIFIC OBJECT cells that are IDENTICAL (anchors)
+   - ⚠️ DO NOT count background cells - only OBJECT cells can be anchors!
+   - ⚠️ Background = most common/prevalent color filling empty space (identify from context)
+   - Mark ONLY those specific anchor OBJECT cells with temporary color (NOT in valid colors)
+   - Template: "HIGHLIGHT: Input→output diff shows N OBJECT cells at [exact positions] unchanged. Mark as ANCHORS using temp color X."
+   - Example: "HIGHLIGHT: Diff shows object cells (12 cells at rows 1-5, cols 2-6) unchanged. Mark as anchors using temp color 8."
    
    STEP 2: TRANSFORM(operation=[action], targets=NON_HIGHLIGHTED, keep_anchors=True)
-   - Modify ONLY non-highlighted cells
-   - Keep highlighted (anchor) cells fixed
-   - Parameters:
-     * operation: What to do (move, color change, replace, etc.)
-     * targets: NON-highlighted cells
-     * keep_anchors: Always True (anchors don't move)
+   - Modify ONLY non-highlighted cells, keep highlighted anchors fixed
    - Template: "TRANSFORM: [Action] all NON-highlighted cells, keeping color X anchors fixed."
    
    STEP 3: UN_HIGHLIGHT(temp_color=X, restore_to=C)
    - Restore anchors to original colors
-   - Parameters:
-     * temp_color: Which temp color to remove
-     * restore_to: Original color
    - Template: "UN-HIGHLIGHT: Restore all color X (anchor) cells to original color C."
+   
+   Example scenario:
+   Step 1: "COPY: Copy color 6 loop (12 cells) AND color 2 cluster (8 cells) FROM INPUT to output"
+   Step 2: "HIGHLIGHT: Diff shows color 6 OBJECT cells (12 cells at rows 1-5, cols 2-6) unchanged. Mark as anchors using temp color 8."
+   Step 3: "TRANSFORM: Replace NON-highlighted color-2 cells with 3×3 hollow square, keeping color-8 anchors fixed."
+   Step 4: "UN-HIGHLIGHT: Restore color 8 anchors to original color 6."
 
 7. NO-OP - No action (condition not met)
-
-HIGHLIGHT SUBPROCESS RULES:
-⚠️⚠️⚠️ MANDATORY FOR PARTIAL TRANSFORMATIONS ⚠️⚠️⚠️
-⚠️ MUST use HIGHLIGHT if ONLY PARTS of an object/grid are modified
-⚠️ MUST use HIGHLIGHT when SPECIFIC OBJECT CELLS stay fixed and OTHER CELLS change
-⚠️ DO NOT count background cells - ONLY highlight OBJECT cells!
-⚠️ Background = most common/prevalent color filling empty space (identify from context)
-⚠️ DO NOT use if copying all objects (use COPY action instead!)
-⚠️ DO NOT use if entire object moves/transforms uniformly (use MOVE/MODIFY instead!)
-
-WHEN YOU MUST USE HIGHLIGHT:
-✅ MANDATORY: "Part of an object changes, part stays fixed" - MUST use HIGHLIGHT subprocess!
-✅ MANDATORY: "Some OBJECT cells stay in place, some OBJECT cells move" - MUST use HIGHLIGHT subprocess!
-✅ MANDATORY: "Specific anchor cells stay fixed while others transform" - MUST use HIGHLIGHT!
-
-WHEN NOT TO USE HIGHLIGHT:
-❌ "Copy objects from input" - use COPY instead!
-❌ "Move ENTIRE object" - ALL cells move, use MOVE instead!
-❌ "Change ALL cells of an object uniformly" - ALL cells change, use MODIFY instead!
-
-PROCESS:
-⚠️ Step 1: Do input→output diff to find SPECIFIC OBJECT cells that are IDENTICAL (anchors)
-⚠️ Step 1: DO NOT count background cells - only OBJECT cells can be anchors!
-⚠️ Step 1: Background = most common color filling empty space (identify from puzzle context)
-⚠️ Step 1: Mark ONLY those specific anchor OBJECT cells with temporary color
-⚠️ Step 2: Transform ONLY the NON-anchor cells (the specific ones that changed)
-⚠️ Step 3: Remove temporary color from anchors
-⚠️ Must list EXACT positions of SPECIFIC OBJECT CELLS, not "cells that will move"
-
-Examples:
-- "HIGHLIGHT: Diff shows 12 OBJECT cells (rows 1-5, cols 2-6) unchanged. Mark as anchors. Remaining cells transform."
-- "HIGHLIGHT: Diff shows OBJECT cells in top half (20 cells, rows 1-5) unchanged. Mark as anchors. Bottom objects transform."
-
-CRITICAL REQUIREMENTS:
-✅ ALWAYS track: DIMENSIONS ("3×3"), COLORS ("color 7"), POSITIONS ("rows 0-2, cols 3-5")
-✅ Description and Grid MUST match EXACTLY
-✅ Grid size: {len(current_grid)}×{len(current_grid[0])}
-✅ Use ONLY colors from {sorted(valid_colors)} (except HIGHLIGHT can use 1 temporary color)
-✅ Break complex transforms into MULTIPLE SIMPLE steps
-
-EXAMPLES (FUNCTION-BASED FORMAT):
-
-COPY EXAMPLES (use COPY to copy from input!):
-❌ BAD: "COPY: Copy entire input grid" - Too vague! Specify objects!
-❌ BAD: "HIGHLIGHT: Mark cells to copy from input" - NO! Use COPY to copy!
-✅ GOOD: "COPY: Copy color 6 loop (12 cells, rows 1-5, cols 2-6) FROM INPUT to output" - One object
-✅ GOOD: "COPY: Copy color 2 cluster (8 cells, rows 7-9, cols 2-5) FROM INPUT to output" - One object
-✅ BEST: "COPY: Copy color 6 loop (12 cells) FROM INPUT to output" (Step 1), then "COPY: Copy color 2 cluster (8 cells) FROM INPUT to output" (Step 2) - ONE OBJECT PER STEP!
-
-⚠️ ALWAYS copy ONE object per step – break multi-object copies into separate steps!
-⚠️ COPY first, THEN use HIGHLIGHT if partial transformation needed!
-
-OTHER ACTION EXAMPLES:
-- "MOVE: Move color 8 block (2×2, rows 10-11, cols 3-4) down 6 rows to rows 16-17"
-- "EXPAND: Replicate each cell from 3×3 input into 3×3 block. Color 0→0s, color 7→7s."
-- "MODIFY: Replace color 2 cells (8 cells, rows 7-9) with 3×3 hollow square centered at row 8, col 4"
-
-HIGHLIGHT_SUBPROCESS EXAMPLES (ONLY for partial transformations):
-
-Scenario: Color 6 loop stays fixed, color 2 cluster transforms
-Step 1: "COPY: Copy color 6 loop (12 cells) AND color 2 cluster (8 cells) FROM INPUT to output"
-Step 2: "HIGHLIGHT: Diff shows color 6 OBJECT cells (12 cells at rows 1-5, cols 2-6) unchanged. Mark as ANCHORS using temp color 8. Color-2 cells will transform."
-Step 3: "TRANSFORM: Replace NON-highlighted color-2 cells (8 cells at rows 7-9, cols 2-5) with 3×3 hollow square, keeping color-8 anchors fixed."
-Step 4: "UN-HIGHLIGHT: Restore color 8 anchors to original color 6."
-
-Scenario: Top half objects stay, bottom objects transform
-Step 1: "COPY: Copy color 5 objects (20 cells) AND color 3 objects (15 cells) FROM INPUT to output"
-Step 2: "HIGHLIGHT: Diff shows color 5 OBJECT cells in top half (20 cells, rows 1-5) unchanged. Mark as ANCHORS using temp color 8. Bottom objects transform."
-Step 3: "TRANSFORM: Shift NON-highlighted cells (bottom objects) down 2 rows, keeping color-8 anchors fixed."
-Step 4: "UN-HIGHLIGHT: Restore color 8 anchors to original color 5."
-
-⚠️ KEY RULES:
-- HIGHLIGHT is for PARTIAL transformations where SPECIFIC OBJECT cells don't move!
-- DO NOT count background as anchors - only OBJECT cells!
-- Background = most common/prevalent color filling empty space (context-dependent)
-- If copying objects, use COPY instead!
 
 ⚠️ DECISION TREE - WHICH ACTION TO USE:
 
@@ -1017,66 +891,13 @@ Q1: Are objects in current grid already, or do I need to copy from INPUT?
 → Already in grid: Continue to Q2...
 
 Q2: Are ONLY PARTS of objects modified (some cells change, some stay fixed)?
-→ YES: MUST use HIGHLIGHT subprocess after COPY (MANDATORY for partial modifications!)
+→ YES: MUST use HIGHLIGHT subprocess (3 steps: HIGHLIGHT → TRANSFORM → UN-HIGHLIGHT)
 → NO: Continue...
 
-Q3: Are SOME SPECIFIC cells identical in input/output while OTHER SPECIFIC cells change?
-→ YES: MUST use HIGHLIGHT subprocess (3 steps: mark SPECIFIC anchors, transform non-anchors, un-highlight)
-→ NO: Continue...
-
-Q4: Does an entire object move/change uniformly (ALL cells of object affected equally)?
+Q3: Does an entire object move/change uniformly (ALL cells affected equally)?
 → Move whole object: Use MOVE (no HIGHLIGHT needed)
-→ Change ALL cells of object: Use MODIFY (no HIGHLIGHT needed)
+→ Change ALL cells: Use MODIFY (no HIGHLIGHT needed)
 → Fill regions: Use FILL
-
-⚠️ CRITICAL SEQUENCE:
-If objects need to be copied AND partially transformed:
-Step 1: COPY objects FROM INPUT
-Step 2: HIGHLIGHT anchors (objects already in grid now!)
-Step 3: TRANSFORM non-anchors
-Step 4: UN-HIGHLIGHT anchors
-
-⚠️⚠️⚠️ MANDATORY RULE ⚠️⚠️⚠️
-IF ONLY PARTS OF AN OBJECT ARE MODIFIED → YOU MUST USE HIGHLIGHT SUBPROCESS!
-- Cannot use MOVE/MODIFY/FILL if only part of object changes
-- Cannot use single-step actions for partial transformations
-- MUST use 3-step HIGHLIGHT subprocess to show which specific cells stay fixed and which transform
-
-EXAMPLES OF DECISION TREE:
-- "Copy color 6 AND color 2 from input" → Step 1: COPY both in ONE step
-- "Color 6 stays fixed, color 2 transforms" → Step 1: COPY both → Step 2-4: HIGHLIGHT subprocess (MANDATORY!)
-- "Top 3 cells of object change, bottom 9 stay" → Step 1: COPY object → Step 2-4: HIGHLIGHT subprocess (MANDATORY!)
-- "PART of color 6 changes, PART stays fixed" → Step 1: COPY object → Step 2-4: HIGHLIGHT subprocess (MANDATORY!)
-- "Left half stays, right half transforms" → Step 1: COPY all → Step 2-4: HIGHLIGHT subprocess (MANDATORY!)
-- "ENTIRE color 6 object moves down 3 rows (ALL 12 cells move together)" → Step 1: COPY → Step 2: MOVE (1 step, all cells)
-- "ALL cells of color 2 change to color 6 (no cells stay fixed)" → Step 1: COPY → Step 2: MODIFY (1 step, all cells)
-
-⚠️ REMEMBER: COPY from INPUT first, THEN apply transformations!
-
-⚠️ BEFORE GENERATING - ASK YOURSELF:
-1. Am I working with SPECIFIC OBJECTS (not "entire grid")?
-2. Is this step SMALL and INCREMENTAL?
-3. Does this TEACH the transformation rule visually?
-4. Did I specify DIMENSIONS, COLORS, POSITIONS for each object?
-5. Am I using the RIGHT action?
-   - Copying objects from INPUT? → Use COPY (if all objects, copy ALL in ONE step!)
-   - SOME cells stay fixed, SOME transform? → Use HIGHLIGHT subprocess (mark specific anchors)
-   - Entire object moves/changes? → Use MOVE/MODIFY (no HIGHLIGHT needed)
-
-⚠️ HIGHLIGHT STEP 1 CHECKLIST (ONLY for PARTIAL transformations):
-DO A GRID DIFF to find SPECIFIC anchor cells:
-1. Compare INPUT grid vs EXPECTED OUTPUT grid cell by cell
-2. Find SPECIFIC OBJECT cells that are IDENTICAL in both (position AND color)
-3. ⚠️ DO NOT count background cells as anchors - only count OBJECT cells!
-3. ⚠️ Background = most common color filling empty space (identify from puzzle context)
-4. Those SPECIFIC identical OBJECT cells = ANCHORS (don't move in transition)
-5. Mark ONLY those SPECIFIC anchor OBJECT cells with temporary color
-6. The NON-anchored cells (the SPECIFIC ones that differ) will be transformed in Step 2
-
-⚠️⚠️⚠️ CRITICAL DISTINCTIONS:
-- COPY = Transfer objects FROM INPUT (for copying all/some objects)
-- HIGHLIGHT = Mark SPECIFIC cells that don't move during PARTIAL transformation
-- DON'T use HIGHLIGHT to copy! Use COPY for copying!
 
 ⚠️⚠️⚠️ MANDATORY OUTPUT FORMAT ⚠️⚠️⚠️
 
@@ -1093,34 +914,20 @@ GRID:
 
 ⚠️ THE WORD "GRID:" IS MANDATORY! DO NOT SKIP IT!
 ⚠️ YOU MUST INCLUDE "Visual Analysis:", "Description:", AND "GRID:" SECTIONS!
-⚠️ If you don't include "GRID:", your response will be REJECTED!
 
-⚠️ KEEP YOUR RESPONSE CONCISE:
-- Visual Analysis: 1-2 sentences maximum
-- Description: 1-2 sentences maximum
-- Then immediately provide the GRID
-- NO lengthy explanations or reasoning text
-- The grid is what matters most!
+⚠️ CRITICAL REQUIREMENTS:
+✅ ALWAYS track: DIMENSIONS ("3×3"), COLORS ("color 7"), POSITIONS ("rows 0-2, cols 3-5")
+✅ Description and Grid MUST match EXACTLY
+✅ Grid size: {len(current_grid)}×{len(current_grid[0])}
+✅ Use ONLY colors from {sorted(valid_colors)} (except HIGHLIGHT can use 1 temporary color)
 
-Examples (CONCISE format - note COPY comes BEFORE HIGHLIGHT):
-- "COPY: Copy color 6 loop (12 cells) FROM INPUT to output" - Same size
-- "COPY: Copy color 2 cluster (8 cells) FROM INPUT to output" - Next COPY step
-- "COPY: Copy entire INPUT grid to current (becomes 3×7)" - Start with input size (single COPY action)
+Examples (CONCISE format):
+- "COPY: Copy color 6 loop (12 cells) FROM INPUT to output"
+- "COPY: Copy entire INPUT grid to current (becomes 3×7)" - Start with input size
 - "CROP: Remove rightmost 4 columns from current grid, changing from 3×7 to 3×3"
-- "COPY: Extract color 1 cells from left region of INPUT (rows 0-2, cols 0-2) to output grid" - Direct extraction
-- "FILL: Fill enclosed region at rows 3-5, cols 2-4 with color 4"
-- "FILL: Mark cells common to both sides with color 2 (pedagogical - shows understanding)"
 - "HIGHLIGHT: Diff shows object cells (12 cells, rows 1-5, cols 2-6) unchanged. Mark as anchors using temp color 8."
-- "TRANSFORM: Replace NON-highlighted cells with the required pattern, keeping anchors fixed."
-- "UN-HIGHLIGHT: Restore anchor cells to their original color."
-
-⚠️ SEQUENCE: First COPY objects from INPUT, then HIGHLIGHT them if needed!
-
-VERIFY (quick checklist):
-1. Dimensions, colors, positions mentioned? ✓
-2. Grid matches description? ✓
-3. Grid size {len(current_grid)}×{len(current_grid[0])}? ✓
-4. Valid colors {sorted(valid_colors)}? ✓
+- "TRANSFORM: Replace NON-highlighted cells with required pattern, keeping color-8 anchors fixed."
+- "UN-HIGHLIGHT: Restore color 8 anchors to original color 6."
 """
             
             try:
@@ -1536,6 +1343,10 @@ VERIFY (quick checklist):
         max_steps = len(gt['steps']) + 10  # Allow up to 10 extra steps
         step_num = 0
         
+        # Track consecutive NO-OP steps to detect stuck loops
+        consecutive_noops = 0
+        max_consecutive_noops = 3
+        
         while step_num < max_steps:
             step_num += 1
             
@@ -1636,13 +1447,28 @@ VERIFY (quick checklist):
             else:
                 # No GT step - this is an extra step beyond ground truth
                 # Compare to final expected output
-                comparison = self.compare_to_gt(
-                    successful_attempt['grid'] if successful_attempt else None,
-                    output_grid
-                )
-                print(f"\n  📊 COMPARISON TO EXPECTED OUTPUT:")
-                print(f"     Accuracy: {comparison['accuracy']:.1%}")
-                print(f"     (Extra step {step_num - len(gt['steps'])} beyond ground truth)")
+                gen_grid = successful_attempt['grid'] if successful_attempt else None
+                comparison = self.compare_to_gt(gen_grid, output_grid)
+                
+                # Check grid size first
+                if gen_grid:
+                    size_match = (len(gen_grid) == len(output_grid) and 
+                                 len(gen_grid[0]) == len(output_grid[0]))
+                    if not size_match:
+                        print(f"\n  📊 COMPARISON TO EXPECTED OUTPUT:")
+                        print(f"     ⚠️ Grid size mismatch!")
+                        print(f"     Generated: {len(gen_grid)}×{len(gen_grid[0])}")
+                        print(f"     Expected: {len(output_grid)}×{len(output_grid[0])}")
+                        print(f"     Accuracy: 0.0% (size mismatch)")
+                        print(f"     (Extra step {step_num - len(gt['steps'])} beyond ground truth)")
+                    else:
+                        print(f"\n  📊 COMPARISON TO EXPECTED OUTPUT:")
+                        print(f"     Accuracy: {comparison['accuracy']:.1%}")
+                        print(f"     (Extra step {step_num - len(gt['steps'])} beyond ground truth)")
+                else:
+                    print(f"\n  📊 COMPARISON TO EXPECTED OUTPUT:")
+                    print(f"     Accuracy: 0.0% (no grid generated)")
+                    print(f"     (Extra step {step_num - len(gt['steps'])} beyond ground truth)")
             
             # DEBUG: Show grid sizes
             if successful_attempt and successful_attempt.get('grid'):
@@ -1687,6 +1513,32 @@ VERIFY (quick checklist):
             final_comparison = self.compare_to_gt(next_grid, output_grid)
             if final_comparison['accuracy'] == 1.0:
                 print(f"\n✅ REACHED EXPECTED OUTPUT! Grid matches 100% at step {step_num}")
+                break
+            
+            # Detect stuck loops: consecutive NO-OP steps with wrong grid size
+            is_noop = next_desc.upper().startswith("NO-OP")
+            grid_size_matches = (len(next_grid) == len(output_grid) and 
+                                len(next_grid[0]) == len(output_grid[0]))
+            
+            if is_noop:
+                consecutive_noops += 1
+                if not grid_size_matches:
+                    print(f"\n⚠️ WARNING: NO-OP step {step_num} has wrong grid size!")
+                    print(f"   Current: {len(next_grid)}×{len(next_grid[0])}, Expected: {len(output_grid)}×{len(output_grid[0])}")
+                    print(f"   Model appears stuck - stopping to avoid infinite loop")
+                    break
+                elif consecutive_noops >= max_consecutive_noops:
+                    print(f"\n⚠️ WARNING: {consecutive_noops} consecutive NO-OP steps detected!")
+                    print(f"   Model appears stuck in a loop - stopping")
+                    break
+            else:
+                consecutive_noops = 0  # Reset counter on non-NO-OP step
+            
+            # Additional check: if grid size is wrong and we're past ground truth steps, stop
+            if step_num > len(gt['steps']) and not grid_size_matches:
+                print(f"\n⚠️ WARNING: Extra step {step_num} has wrong grid size!")
+                print(f"   Current: {len(next_grid)}×{len(next_grid[0])}, Expected: {len(output_grid)}×{len(output_grid[0])}")
+                print(f"   Stopping to avoid further incorrect steps")
                 break
         
         # Final validation: Check for temporary colors in final grid
@@ -1756,9 +1608,11 @@ VERIFY (quick checklist):
                     img = grid_to_image(attempt['grid'], 30)
                     img.save(output_dir / f"step_{step_num:02d}_attempt_{attempt['attempt']}.png")
             
-            # Save ground truth
-            gt_img = grid_to_image(step_result['ground_truth']['grid'], 30)
-            gt_img.save(output_dir / f"step_{step_num:02d}_ground_truth.png")
+            # Save ground truth (only if available - extra steps may not have GT)
+            gt_grid = step_result['ground_truth'].get('grid')
+            if gt_grid is not None:
+                gt_img = grid_to_image(gt_grid, 30)
+                gt_img.save(output_dir / f"step_{step_num:02d}_ground_truth.png")
             
             # Save final (what was used for next step)
             final_img = grid_to_image(step_result['final_grid'], 30)
