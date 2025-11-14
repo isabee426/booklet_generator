@@ -49,6 +49,20 @@ def find_puzzles():
     
     return sorted(puzzles)
 
+def load_generalized_patterns(puzzle_id: str):
+    """Load generalized patterns/booklet for a puzzle"""
+    patterns_file = Path("visual_step_results") / puzzle_id / "generalized_steps" / "generalized_patterns.json"
+    
+    if not patterns_file.exists():
+        return None
+    
+    try:
+        with open(patterns_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        st.error(f"Error loading generalized patterns: {e}")
+        return None
+
 def load_step_results(puzzle_id: str, training_num: int, is_test: bool = False):
     """Load step results for a specific training example"""
     example_type = "testing" if is_test else "training"
@@ -381,6 +395,99 @@ def render_step_card(step_data: Dict, puzzle_id: str, training_num: int,
         if step_data.get('used_ground_truth'):
             st.caption("⚠️ Used GT")
 
+def display_generalized_steps(generalized_patterns: Dict):
+    """Display generalized steps/patterns"""
+    st.subheader("📋 Generalized Step Sequence")
+    
+    generalized_steps = generalized_patterns.get('generalized_step_sequence', [])
+    transition_determinants = generalized_patterns.get('transition_determinants', {})
+    booklet_pattern = generalized_patterns.get('booklet_pattern', {})
+    transformation_rule = generalized_patterns.get('transformation_rule', {})
+    
+    if generalized_steps:
+        st.markdown(f"**Found {len(generalized_steps)} generalized steps:**")
+        for i, step in enumerate(generalized_steps):
+            with st.expander(f"Step {step.get('step_num', i+1)}: {step.get('step_type', 'N/A').upper()}"):
+                st.markdown(f"**Description:** {step.get('description', 'N/A')}")
+                if step.get('exact_colors'):
+                    st.markdown(f"**Colors:** {', '.join(step.get('exact_colors', []))}")
+                if step.get('exact_spacing'):
+                    st.markdown(f"**Spacing:** {step.get('exact_spacing', 'N/A')}")
+                if step.get('exact_pattern'):
+                    st.markdown(f"**Pattern:** {step.get('exact_pattern', 'N/A')}")
+                if step.get('conditions'):
+                    st.markdown(f"**Conditions:** {step.get('conditions', 'N/A')}")
+                if step.get('applies_to'):
+                    st.markdown(f"**Applies To:** {step.get('applies_to', 'N/A')}")
+                if step.get('adaptation'):
+                    st.markdown(f"**Adaptation:** {step.get('adaptation', 'N/A')}")
+    else:
+        st.info("No generalized step sequence found")
+    
+    if transition_determinants:
+        st.subheader("🔀 Transition Determinants")
+        determinants = transition_determinants.get('transition_determinants', [])
+        if determinants:
+            st.markdown(f"**Found {len(determinants)} transition types:**")
+            for i, det in enumerate(determinants):
+                with st.expander(f"Transition {i+1}: {det.get('transition_type', 'N/A')}"):
+                    props = det.get('determining_properties', {})
+                    st.markdown(f"**Determining Properties:**")
+                    if props.get('colors'):
+                        st.markdown(f"- Colors: {', '.join(props.get('colors', []))}")
+                    if props.get('shapes'):
+                        st.markdown(f"- Shapes: {', '.join(props.get('shapes', []))}")
+                    if props.get('positions'):
+                        st.markdown(f"- Positions: {props.get('positions', 'N/A')}")
+                    
+                    conditions = det.get('conditions', [])
+                    if conditions:
+                        st.markdown(f"**Conditions:**")
+                        for cond in conditions:
+                            st.markdown(f"- {cond}")
+                    
+                    trans_rule = det.get('transition_rule', {})
+                    if trans_rule:
+                        st.markdown(f"**Transition Rule:**")
+                        if trans_rule.get('exact_transformation'):
+                            st.markdown(f"- Transformation: {trans_rule.get('exact_transformation')}")
+                        if trans_rule.get('exact_pattern'):
+                            st.markdown(f"- Pattern: {trans_rule.get('exact_pattern')}")
+        else:
+            st.info("No transition determinants found")
+    
+    if booklet_pattern:
+        st.subheader("📖 Booklet Pattern")
+        pattern_gen = booklet_pattern.get('generalization', '')
+        if pattern_gen:
+            st.markdown(f"**Generalization:** {pattern_gen}")
+        
+        step_seq = booklet_pattern.get('step_sequence_pattern', [])
+        if step_seq:
+            st.markdown(f"**Step Sequence Pattern ({len(step_seq)} steps):**")
+            for step in step_seq:
+                st.markdown(f"- Step {step.get('order', 'N/A')} [{step.get('step_type', 'N/A')}]: {step.get('description', 'N/A')}")
+        
+        trans_rules = booklet_pattern.get('transformation_rules', [])
+        if trans_rules:
+            st.markdown(f"**Transformation Rules ({len(trans_rules)}):**")
+            for rule in trans_rules:
+                st.markdown(f"- {rule.get('rule', 'N/A')} (applies to: {rule.get('applies_to', 'N/A')})")
+    
+    if transformation_rule:
+        st.subheader("⚙️ Transformation Rule")
+        rule_desc = transformation_rule.get('rule_description', '')
+        if rule_desc:
+            st.markdown(f"**Rule:** {rule_desc}")
+        
+        gen = transformation_rule.get('generalization', {})
+        if gen.get('abstract_rule'):
+            st.markdown(f"**Abstract Rule:** {gen.get('abstract_rule')}")
+        if gen.get('color_logic'):
+            st.markdown(f"**Color Logic:** {gen.get('color_logic')}")
+        if gen.get('shape_logic'):
+            st.markdown(f"**Shape Logic:** {gen.get('shape_logic')}")
+
 def main():
     st.title("📊 ARC Step Grid Viewer")
     st.markdown("**Enhanced viewer with horizontal scrolling** - Scroll horizontally to navigate through all steps")
@@ -464,6 +571,10 @@ def main():
             for stype, count in sorted(step_types_count.items()):
                 st.sidebar.caption(f"  • {stype}: {count}")
     
+    # Check for generalized patterns
+    generalized_patterns = load_generalized_patterns(selected_puzzle)
+    show_generalized = st.sidebar.checkbox("Show Generalized Steps", value=False)
+    
     # Display options
     st.sidebar.divider()
     st.sidebar.header("⚙️ Display Options")
@@ -484,6 +595,11 @@ def main():
         show_others = st.sidebar.checkbox("Show Other Steps", value=True)
     
     # Main display
+    if show_generalized and generalized_patterns:
+        st.header(f"🧩 Puzzle: {selected_puzzle} - Generalized Steps")
+        display_generalized_steps(generalized_patterns)
+        st.divider()
+    
     st.header(f"🧩 Puzzle: {selected_puzzle} - {example_type} Example {selected_example}")
     
     # Show puzzle info with better layout

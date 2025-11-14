@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Visual Step Generator V6 - Comprehensive Analysis with Mini-Analysis Transformations
+Visual Step Generator V7 - Generalized Steps First Architecture
 
-V6 features:
+V7 features:
 - Consolidated prompt templates (no repetition)
 - Removed unused code (detect_objects fallback)
 - Streamlined prompts while preserving all functionality
@@ -55,19 +55,24 @@ except ImportError as e:
     sys.exit(1)
 
 
-class VisualStepGeneratorV6:
-    """Visual Step Generator V6 - Comprehensive Analysis with Mini-Analysis Transformations
+class VisualStepGeneratorV7:
+    """Visual Step Generator V7 - Generalized Steps First, Then Apply to Training
+    
+    Architecture:
+    1. Analyze ALL training examples to extract generalized steps
+    2. Each generalized step: "for each (CONDITION, OBJECT) apply transformations"
+    3. Apply generalized steps to training examples to generate training booklets
+    4. Use same generalized steps for test examples
     
     Features:
     - Comprehensive puzzle analysis (input-input, output-output, input-output, reference objects)
-    - Mini-analysis for each transformation explaining why and conditions
-    - Crop-transform-uncrop workflow (or crop-to-output-size for input > output)
-    - Reference object detection and analysis
-    - Grid size change handling
+    - Generate generalized steps BEFORE training booklets
+    - Each step: (CONDITION, OBJECT) → transformations
+    - Full tool awareness: negative space, scaled objects, rotate, reflect, repeat pattern
     - Line object special handling
-    - Negative space awareness
-    - Scaled object awareness
-    - Conditional transformations
+    - Conditional transformations with 1-to-1 correlations
+    - Object completion, fitting, drawing
+    - Dimension awareness, reshaping, counting
     """
     
     def __init__(self, model: str = "gpt-5-mini"):
@@ -78,7 +83,7 @@ class VisualStepGeneratorV6:
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.tools = self._define_tools()
-        print(f"✓ Initialized V6 with {model}")
+        print(f"✓ Initialized V7 with {model}")
     
     def _define_tools(self) -> List[Dict]:
         """Define function calling tools"""
@@ -2825,13 +2830,582 @@ Focus on extracting patterns that are GENERALIZABLE - rules that work for any in
             "generalization": "Pattern extraction failed - using fallback"
         }
     
+    # ==================== V7 GENERALIZED STEPS GENERATION ====================
+    
+    def generate_generalized_steps_v7(self, all_training_examples: List[Dict], 
+                                     comprehensive_analysis: Dict,
+                                     transformation_rule: Dict) -> List[Dict]:
+        """Generate generalized steps with full tool awareness - pattern: for each (CONDITION, OBJECT) apply transformations"""
+        print(f"\n{'='*80}")
+        print("GENERATING GENERALIZED STEPS V7 (with full tool awareness)")
+        print(f"{'='*80}\n")
+        
+        input_grids = [ex['input'] for ex in all_training_examples]
+        output_grids = [ex['output'] for ex in all_training_examples]
+        
+        grids_text = ""
+        for i, (in_grid, out_grid) in enumerate(zip(input_grids, output_grids)):
+            grids_text += f"\nTRAINING {i+1}:\n"
+            grids_text += f"Input: {self._format_grid(in_grid)}\n"
+            grids_text += f"Output: {self._format_grid(out_grid)}\n"
+        
+        prompt = f"""Analyze ALL training examples to generate GENERALIZED STEPS.
+Each step follows the pattern: "for each (CONDITION, OBJECT) apply 1 or more transformations"
+
+{grids_text}
+
+COMPREHENSIVE ANALYSIS CONTEXT:
+{json.dumps(comprehensive_analysis, indent=2)}
+
+TRANSFORMATION RULE:
+{json.dumps(transformation_rule, indent=2) if transformation_rule else "N/A"}
+
+CRITICAL: Generate steps that specify:
+1. CONDITION: What properties/conditions identify objects to transform
+   - Colors (e.g., "if object is color 2")
+   - Shapes (e.g., "if object is vertical line", "if object is L-shaped")
+   - Positions (e.g., "if object is in top-left", "if object is near reference")
+   - Sizes (e.g., "if object is 3 cells")
+   - Relationships (e.g., "if object is adjacent to color 8 object")
+   - Countable properties (e.g., "if object has 2 holes", "if object height is 3")
+   - Most common (e.g., "if object matches most common shape/color")
+
+2. OBJECT: What type of object this applies to
+   - Solid objects
+   - Line objects (sequential, can change color by section, drawn in order)
+   - Reference objects
+   - Scaled objects (sized up/down versions)
+   - Objects with specific properties
+
+3. TRANSFORMATIONS: What transformations to apply (can be multiple):
+   - Recolor (color X → color Y)
+   - Reshape (rectangularize, make more standard shape)
+   - Move (translate to new position)
+   - Scale (size up/down)
+   - Rotate (90°, 180°, 270°)
+   - Reflect (on axis: horizontal, vertical, diagonal)
+   - Repeat pattern (fill pattern, replicate)
+   - Complete objects (recolor, reshape, move conditionally)
+   - Fit objects together (find edges that counter each other)
+   - Draw in object's color (lines vs objects)
+   - Handle negative space (see cells common between parts, cells common to only one part)
+   - Remove stray cells (difference between objects and stray cells)
+   - Zoom in/out (including or excluding borders)
+   - Center objects
+   - Handle dimension/overlap (which object is frontmost)
+
+FULL TOOL AWARENESS:
+- Negative space: See cells common between parts of input, cells common to only one part
+- Scaled objects: Awareness of sized up/down objects, when object is scaled version of another
+- Lines: Different rules - sequential, starting/ending points, color changes by section, drawn in order
+- Conditions: 1-to-1 correlations between shapes and colors, or colors and shapes
+- Object completion: Recolor, reshape or move conditionally
+- Object fitting: Finding edges that counter each other
+- Drawing: Drawing in object's color, lines vs objects
+- Line connections: Lines can connect objects (see output similarities)
+- Dimension awareness: When objects overlap, which is frontmost
+- Reshaping: Rectangularizing or making fuzzy-edged shapes into standard shapes
+- Counting: Holes, cell length/height, multiple objects same shape/color count
+
+Return JSON:
+{{
+  "generalized_steps": [
+    {{
+      "step_num": 1,
+      "step_type": "transform|remove|new_object|reference",
+      "condition": {{
+        "description": "clear condition statement",
+        "properties": {{
+          "colors": ["color X", "color Y"],
+          "shapes": ["vertical line", "L-shaped"],
+          "positions": "where objects must be",
+          "sizes": "what sizes trigger this",
+          "relationships": "relationships that trigger this",
+          "countable": "countable properties (holes, length, height)",
+          "most_common": "if matches most common shape/color"
+        }},
+        "object_type": "solid_object|line_object|reference_object|scaled_object"
+      }},
+      "applies_to": "what objects this step applies to",
+      "transformations": [
+        {{
+          "type": "recolor|reshape|move|scale|rotate|reflect|repeat_pattern|complete|fit|draw|handle_negative_space|remove_stray|zoom|center|handle_dimension",
+          "description": "detailed transformation description",
+          "parameters": {{
+            "from_color": "color X",
+            "to_color": "color Y",
+            "rotation": "90|180|270",
+            "reflection_axis": "horizontal|vertical|diagonal",
+            "scale_factor": "2x|3x|0.5x",
+            "pattern": "fill pattern description",
+            "position": "where to move/place",
+            "completion_type": "recolor|reshape|move",
+            "fitting_type": "edge matching description",
+            "drawing_type": "line|object color",
+            "negative_space_type": "common_between|common_to_one",
+            "zoom_type": "in|out",
+            "include_borders": true|false
+          }}
+        }}
+      ],
+      "order": 1,
+      "depends_on": ["step numbers this depends on"],
+      "reference_objects": "how reference objects guide this step"
+    }}
+  ],
+  "execution_order": "order of steps",
+  "object_processing_rules": "rules for processing objects"
+}}
+
+Focus on extracting EXACT conditions and transformations that work across ALL training examples."""
+        
+        images = []
+        for in_grid, out_grid in zip(input_grids, output_grids):
+            images.append(grid_to_image(in_grid, 50))
+            images.append(grid_to_image(out_grid, 50))
+        
+        result, _ = self.call_api(prompt, images)
+        
+        if isinstance(result, dict):
+            steps = result.get('generalized_steps', [])
+            if steps:
+                print(f"\n✓ Generated {len(steps)} generalized steps")
+                return steps
+        
+        # Parse JSON if needed
+        parsed = self._parse_analysis_json(result if isinstance(result, str) else str(result), "generalized steps")
+        if isinstance(parsed, dict):
+            steps = parsed.get('generalized_steps', [])
+            if steps:
+                print(f"\n✓ Generated {len(steps)} generalized steps")
+                return steps
+        
+        print("  ⚠️ Failed to generate generalized steps")
+        return []
+    
+    def generate_transition_determinants_v7(self, all_training_examples: List[Dict],
+                                           comprehensive_analysis: Dict) -> Dict:
+        """Generate transition determinants: (CONDITION, OBJECT) → transformations"""
+        print(f"\n{'='*80}")
+        print("GENERATING TRANSITION DETERMINANTS V7")
+        print(f"{'='*80}\n")
+        
+        input_grids = [ex['input'] for ex in all_training_examples]
+        output_grids = [ex['output'] for ex in all_training_examples]
+        
+        grids_text = ""
+        for i, (in_grid, out_grid) in enumerate(zip(input_grids, output_grids)):
+            grids_text += f"\nTRAINING {i+1}:\n"
+            grids_text += f"Input: {self._format_grid(in_grid)}\n"
+            grids_text += f"Output: {self._format_grid(out_grid)}\n"
+        
+        prompt = f"""Generate TRANSITION DETERMINANTS: (CONDITION, OBJECT) → transformations
+
+{grids_text}
+
+COMPREHENSIVE ANALYSIS:
+{json.dumps(comprehensive_analysis, indent=2)}
+
+For EACH type of transition, specify:
+
+1. CONDITION: Exact conditions that determine when this transition applies
+   - Object properties (colors, shapes, sizes, positions)
+   - Relationships (near reference, adjacent to X, etc.)
+   - Countable properties (holes, length, height)
+   - Most common (matches most common shape/color)
+   - 1-to-1 correlations (if shape X then color Y)
+
+2. OBJECT: What type of object this applies to
+   - Solid objects, line objects, reference objects, scaled objects
+
+3. TRANSFORMATIONS: Exact transformations to apply
+   - Can be multiple transformations in sequence
+   - Include all tool types: recolor, reshape, move, scale, rotate, reflect, repeat pattern, complete, fit, draw, handle negative space, etc.
+
+Return JSON:
+{{
+  "transition_determinants": [
+    {{
+      "transition_type": "color_change|replication|movement|creation|removal|scale|rotate|reflect|complete|fit",
+      "condition": {{
+        "description": "clear condition statement",
+        "properties": {{
+          "colors": ["color X"],
+          "shapes": ["vertical line"],
+          "positions": "where",
+          "sizes": "what sizes",
+          "relationships": "relationships",
+          "countable": "countable properties",
+          "most_common": "if matches most common",
+          "correlations": "1-to-1 correlations"
+        }},
+        "object_type": "solid_object|line_object|reference_object|scaled_object"
+      }},
+      "object_description": "what objects this applies to",
+      "transformations": [
+        {{
+          "type": "transformation type",
+          "description": "detailed description",
+          "parameters": {{}}
+        }}
+      ],
+      "transition_rule": {{
+        "exact_transformation": "exact transformation",
+        "exact_pattern": "exact pattern",
+        "exact_spacing": "exact spacing"
+      }},
+      "application_logic": {{
+        "check_properties": "how to check if object matches condition",
+        "verify_conditions": "how to verify conditions",
+        "apply_rule": "how to apply transformations"
+      }}
+    }}
+  ],
+  "decision_tree": "overall decision logic"
+}}"""
+        
+        images = []
+        for in_grid, out_grid in zip(input_grids, output_grids):
+            images.append(grid_to_image(in_grid, 50))
+            images.append(grid_to_image(out_grid, 50))
+        
+        result, _ = self.call_api(prompt, images)
+        
+        if isinstance(result, dict):
+            return result
+        
+        parsed = self._parse_analysis_json(result if isinstance(result, str) else str(result), "transition determinants")
+        if isinstance(parsed, dict):
+            return parsed
+        
+        return {"transition_determinants": [], "decision_tree": "Check properties and apply transformations"}
+    
+    def generate_booklet_pattern_v7(self, generalized_step_sequence: List[Dict],
+                                    transition_determinants: Dict) -> Dict:
+        """Generate booklet pattern from generalized steps"""
+        print(f"\n{'='*80}")
+        print("GENERATING BOOKLET PATTERN V7")
+        print(f"{'='*80}\n")
+        
+        steps_text = json.dumps(generalized_step_sequence, indent=2)
+        determinants_text = json.dumps(transition_determinants, indent=2)
+        
+        prompt = f"""Generate booklet pattern from generalized steps:
+
+GENERALIZED STEPS:
+{steps_text}
+
+TRANSITION DETERMINANTS:
+{determinants_text}
+
+Extract the overall pattern and execution order.
+
+Return JSON:
+{{
+  "generalization": "overall pattern description",
+  "step_sequence_pattern": [
+    {{
+      "step_type": "step type",
+      "order": 1,
+      "description": "what this step does",
+      "conditions": "when this applies"
+    }}
+  ],
+  "object_processing_order": {{
+    "reference_objects": "how reference objects are identified",
+    "processing_order": "order objects are processed",
+    "removed_objects": "which objects are removed",
+    "new_objects": "when/where new objects are created"
+  }},
+  "transformation_rules": [
+    {{
+      "rule": "general transformation rule",
+      "applies_to": "what objects/conditions",
+      "uses_reference": "how reference objects guide this"
+    }}
+  ]
+}}"""
+        
+        result, _ = self.call_api(prompt, [])
+        
+        if isinstance(result, dict):
+            return result
+        
+        parsed = self._parse_analysis_json(result if isinstance(result, str) else str(result), "booklet pattern")
+        if isinstance(parsed, dict):
+            return parsed
+        
+        return {
+            "generalization": "Apply generalized steps in order",
+            "step_sequence_pattern": [],
+            "object_processing_order": {},
+            "transformation_rules": []
+        }
+    
+    def apply_generalized_steps_to_example(self, input_grid: List[List[int]], output_grid: List[List[int]],
+                                          generalized_step_sequence: List[Dict],
+                                          transition_determinants: Dict,
+                                          comprehensive_analysis: Dict,
+                                          puzzle_id: str, training_num: int) -> List[Dict]:
+        """Apply generalized steps to a specific training example - each step processes one object"""
+        print(f"\n{'='*80}")
+        print(f"APPLYING GENERALIZED STEPS TO TRAINING EXAMPLE {training_num}")
+        print(f"{'='*80}\n")
+        
+        steps = []
+        step_num = 0
+        current_grid = [row[:] for row in input_grid]
+        
+        # Initial step
+        step_num += 1
+        steps.append({
+            "step_num": step_num,
+            "description": "Start with input grid",
+            "grid": [row[:] for row in current_grid],
+            "is_crop_step": False
+        })
+        
+        # Detect objects in input
+        print("Detecting objects in input...")
+        input_objects = self.detect_objects_with_model(input_grid, "input", retry_count=3, use_hybrid=False)
+        print(f"  Found {len(input_objects)} objects")
+        
+        # Detect objects in output
+        output_objects = []
+        if output_grid:
+            output_objects = self.detect_objects_with_model(output_grid, "output", retry_count=3, use_hybrid=False)
+            print(f"  Found {len(output_objects)} objects in output")
+        
+        # Match objects
+        object_matches = {}
+        if output_grid and output_objects:
+            object_matches = self.match_objects_with_model(input_objects, output_objects, input_grid, output_grid)
+        
+        # Process each generalized step
+        for gen_step in generalized_step_sequence:
+            step_type = gen_step.get('step_type', 'transform')
+            condition = gen_step.get('condition', {})
+            transformations = gen_step.get('transformations', [])
+            applies_to = gen_step.get('applies_to', 'all objects')
+            
+            print(f"\n{'='*80}")
+            print(f"APPLYING GENERALIZED STEP {gen_step.get('step_num', 'N/A')}: {step_type.upper()}")
+            print(f"  Condition: {condition.get('description', 'N/A')}")
+            print(f"  Applies to: {applies_to}")
+            print(f"  Transformations: {len(transformations)}")
+            print(f"{'='*80}\n")
+            
+            # Find objects that match the condition
+            matching_objects = self.find_objects_matching_condition(input_objects, condition, current_grid, input_grid)
+            
+            if not matching_objects:
+                print(f"  ⏭️ No objects match condition - skipping step")
+                continue
+            
+            print(f"  Found {len(matching_objects)} objects matching condition")
+            
+            # Process each matching object
+            for obj_idx in matching_objects:
+                input_obj = input_objects[obj_idx]
+                output_obj_idx = object_matches.get(obj_idx)
+                
+                # Check if object changes
+                if output_grid and output_obj_idx is not None:
+                    # Crop to compare
+                    cropped_input_check, _ = self.crop_to_object(current_grid, input_obj['bbox'])
+                    cropped_output_check, _ = self.crop_to_object(output_grid, input_obj['bbox'])
+                    accuracy_check = self.compare_grids(cropped_input_check, cropped_output_check)
+                    if accuracy_check >= 1.0:
+                        print(f"  ⏭️ Object {obj_idx + 1} does NOT change - skipping")
+                        continue
+                
+                print(f"\n  Processing Object {obj_idx + 1}: {input_obj.get('description', 'N/A')}")
+                
+                # Apply transformations to this object
+                object_steps, updated_grid = self.apply_transformations_to_object(
+                    obj_idx, input_obj, current_grid, output_grid, 
+                    transformations, condition, gen_step, step_num
+                )
+                
+                steps.extend(object_steps)
+                step_num += len(object_steps)
+                
+                # Update current grid from last step
+                current_grid = updated_grid
+        
+        # Final step
+        step_num += 1
+        final_accuracy = None
+        if output_grid:
+            final_accuracy = self.compare_grids(current_grid, output_grid)
+        
+        steps.append({
+            "step_num": step_num,
+            "description": "Final output",
+            "grid": [row[:] for row in current_grid],
+            "is_final_step": True,
+            "accuracy": final_accuracy
+        })
+        
+        return steps
+    
+    def find_objects_matching_condition(self, input_objects: List[Dict], condition: Dict,
+                                       current_grid: List[List[int]], input_grid: List[List[int]]) -> List[int]:
+        """Find objects that match the condition"""
+        matching = []
+        props = condition.get('properties', {})
+        object_type = condition.get('object_type', 'solid_object')
+        
+        for i, obj in enumerate(input_objects):
+            matches = True
+            
+            # Check colors
+            if props.get('colors'):
+                obj_colors = obj.get('colors', [])
+                required_colors = props['colors']
+                if not any(c in obj_colors for c in required_colors):
+                    matches = False
+            
+            # Check shapes
+            if props.get('shapes') and matches:
+                obj_desc = obj.get('description', '').lower()
+                required_shapes = [s.lower() for s in props['shapes']]
+                if not any(shape in obj_desc for shape in required_shapes):
+                    matches = False
+            
+            # Check object type
+            if object_type != 'solid_object' and matches:
+                # For now, assume all are solid objects unless specified
+                pass
+            
+            if matches:
+                matching.append(i)
+        
+        return matching
+    
+    def apply_transformations_to_object(self, obj_idx: int, input_obj: Dict,
+                                      current_grid: List[List[int]], output_grid: List[List[int]],
+                                      transformations: List[Dict], condition: Dict,
+                                      gen_step: Dict, start_step_num: int) -> Tuple[List[Dict], List[List[int]]]:
+        """Apply transformations to a single object - returns crop-transform-uncrop steps"""
+        steps = []
+        step_num = start_step_num
+        
+        bbox = input_obj.get('bbox')
+        if not bbox:
+            return steps
+        
+        # Crop to object
+        cropped_input, crop_metadata = self.crop_to_object(current_grid, bbox)
+        
+        cropped_output = None
+        if output_grid:
+            cropped_output, _ = self.crop_to_object(output_grid, bbox)
+        
+        # Crop step
+        step_num += 1
+        steps.append({
+            "step_num": step_num,
+            "description": f"CROP: Object {obj_idx + 1} ({input_obj.get('description', 'object')})",
+            "grid": [row[:] for row in current_grid],
+            "object_num": obj_idx + 1,
+            "is_crop_step": True,
+            "crop_metadata": crop_metadata,
+            "cropped_input": cropped_input,
+            "cropped_output": cropped_output,
+            "bbox": bbox
+        })
+        
+        crop_step_num = step_num
+        
+        # Apply transformations
+        transformed_grid = cropped_input
+        for trans in transformations:
+            trans_type = trans.get('type', 'transform')
+            trans_desc = trans.get('description', '')
+            trans_params = trans.get('parameters', {})
+            
+            # Build transformation prompt
+            transform_prompt = f"""Apply transformation to this object:
+
+Cropped Input:
+{self._format_grid(transformed_grid)}
+
+Cropped Target:
+{self._format_grid(cropped_output) if cropped_output else 'N/A'}
+
+Transformation Type: {trans_type}
+Description: {trans_desc}
+Parameters: {json.dumps(trans_params, indent=2)}
+
+Generalized Step Condition: {condition.get('description', 'N/A')}
+
+Apply the transformation. Use generate_grid tool."""
+            
+            transform_img = grid_to_image(transformed_grid, 50)
+            target_img = grid_to_image(cropped_output, 50) if cropped_output else None
+            
+            imgs = [transform_img]
+            if target_img:
+                imgs.append(target_img)
+            
+            description, transformed_grid = self.call_api(
+                transform_prompt, imgs, transformed_grid,
+                tool_choice={"type": "function", "function": {"name": "generate_grid"}}
+            )
+            
+            if not transformed_grid:
+                transformed_grid = cropped_input
+        
+        # Transform step
+        step_num += 1
+        accuracy = None
+        if cropped_output:
+            accuracy = self.compare_grids(transformed_grid, cropped_output)
+        
+        steps.append({
+            "step_num": step_num,
+            "description": f"TRANSFORM: {', '.join([t.get('type', 'transform') for t in transformations])} - Object {obj_idx + 1}",
+            "grid": transformed_grid,
+            "object_num": obj_idx + 1,
+            "is_crop_step": False,
+            "is_cropped_view": True,
+            "accuracy": accuracy,
+            "parent_crop_step": crop_step_num,
+            "cropped_ground_truth": cropped_output,
+            "cropped_output": cropped_output
+        })
+        
+        # Uncrop - need to pass current_grid properly
+        # Get the current grid state (should be passed in, but for now use the one from parent)
+        # Note: This is a simplified version - in full implementation, current_grid should be maintained
+        uncropped_grid = self.uncrop_to_full_grid(transformed_grid, current_grid, crop_metadata)
+        
+        step_num += 1
+        uncrop_accuracy = None
+        if output_grid:
+            uncrop_accuracy = self.compare_grids(uncropped_grid, output_grid)
+        
+        steps.append({
+            "step_num": step_num,
+            "description": f"UNCROP: Object {obj_idx + 1} back to grid",
+            "grid": [row[:] for row in uncropped_grid],
+            "object_num": obj_idx + 1,
+            "is_crop_step": False,
+            "is_uncrop_step": True,
+            "accuracy": uncrop_accuracy,
+            "parent_crop_step": crop_step_num
+        })
+        
+        return steps, uncropped_grid  # Return both steps and updated grid
+    
     # ==================== MAIN RUN METHOD ====================
     
     def run(self, puzzle_id: str, training_num: int = 1, shared_analysis: str = None, is_test: bool = False):
         """Main run function - object-centric approach with iterative improvement"""
         print(f"\n{'='*80}")
         example_type = "TESTING" if is_test else "TRAINING"
-        print(f"VISUAL STEP GENERATOR V6: {puzzle_id} ({example_type.lower()}_{training_num:02d})")
+        print(f"VISUAL STEP GENERATOR V7: {puzzle_id} ({example_type.lower()}_{training_num:02d})")
         print(f"{'='*80}\n")
         
         # Load puzzle data
@@ -2839,41 +3413,16 @@ Focus on extracting patterns that are GENERALIZABLE - rules that work for any in
         
         all_training_examples = arc['train']
         
-        # For test mode: first analyze transformation rule and training booklets
-        transformation_rule = None
-        booklet_pattern = None
-        generalized_step_sequence = []
-        transition_determinants = None
-        object_step_mapping = None
+        # V7 ARCHITECTURE: Generate generalized steps FIRST (before training booklets)
+        # Check if generalized steps already exist, otherwise generate them
+        generalized_steps = self._load_or_generate_generalized_steps(puzzle_id, all_training_examples)
         
-        if is_test:
-            print("TEST MODE: Analyzing transformation rule from training examples...")
-            transformation_rule = self.analyze_transformation_rule(all_training_examples)
-            
-            print("\nTEST MODE: Loading and analyzing training booklets...")
-            training_booklets = self.load_training_booklets(puzzle_id, len(all_training_examples))
-            if training_booklets:
-                # First: Analyze what determines transitions
-                print("\nTEST MODE: Analyzing transition determinants...")
-                transition_determinants = self.analyze_transition_determinants(
-                    all_training_examples, training_booklets
-                )
-                
-                # Then: Generate generalized step sequence
-                print("\nTEST MODE: Generating generalized step sequence...")
-                generalized_step_sequence = self.generate_generalized_step_sequence(
-                    training_booklets, transformation_rule
-                )
-                
-                # Finally: Analyze booklet pattern
-                booklet_pattern = self.analyze_booklet_pattern(training_booklets)
-                
-                # Save generalized booklet/pattern to file
-                self._save_generalized_booklet(puzzle_id, transition_determinants, 
-                                              generalized_step_sequence, booklet_pattern, 
-                                              transformation_rule)
-            else:
-                print("  ⚠️ No training booklets found. Using rule analysis instead.")
+        # Extract generalized step components
+        transformation_rule = generalized_steps.get('transformation_rule')
+        booklet_pattern = generalized_steps.get('booklet_pattern')
+        generalized_step_sequence = generalized_steps.get('generalized_step_sequence', [])
+        transition_determinants = generalized_steps.get('transition_determinants')
+        object_step_mapping = None
         
         # Get input/output grids
         if is_test:
@@ -2911,6 +3460,22 @@ Focus on extracting patterns that are GENERALIZABLE - rules that work for any in
         self._current_comprehensive_analysis = comprehensive_analysis
         shared_analysis = puzzle_analysis.get('analysis', '')
         
+        # V7: Apply generalized steps to training examples to generate training booklets
+        if not is_test:
+            print(f"\nV7: Applying generalized steps to training example {training_num}...")
+            # Apply generalized steps to this training example
+            steps = self.apply_generalized_steps_to_example(
+                input_grid, output_grid, generalized_step_sequence, 
+                transition_determinants, comprehensive_analysis, puzzle_id, training_num
+            )
+            # Save training booklet
+            self._save_results(puzzle_id, training_num, shared_analysis or "", 
+                              steps, input_grid, output_grid, is_test=False)
+            print(f"\n{'='*80}")
+            print(f"✅ COMPLETE: Generated {len(steps)} steps")
+            print(f"{'='*80}\n")
+            return
+        
         # Merge transformation rule and booklet pattern into puzzle analysis if available
         if transformation_rule:
             puzzle_analysis['transformation_rule'] = transformation_rule
@@ -2940,6 +3505,21 @@ Focus on extracting patterns that are GENERALIZABLE - rules that work for any in
             if transition_determinants.get('decision_tree'):
                 print(f"  Decision tree: {transition_determinants.get('decision_tree', 'N/A')[:80]}...")
         
+        # Test mode: Apply generalized steps to test input
+        if is_test:
+            print(f"\nV7 TEST MODE: Applying generalized steps to test example {training_num}...")
+            steps = self.apply_generalized_steps_to_example(
+                input_grid, None, generalized_step_sequence, 
+                transition_determinants, comprehensive_analysis, puzzle_id, training_num
+            )
+            # Save test results
+            self._save_results(puzzle_id, training_num, shared_analysis or "", 
+                              steps, input_grid, None, is_test=True)
+            print(f"\n{'='*80}")
+            print(f"✅ COMPLETE: Generated {len(steps)} steps")
+            print(f"{'='*80}\n")
+            return
+        
         # Detect objects using model only (filters out single-cell objects)
         print("Detecting objects (model only - multi-cell objects)...")
         input_objects = self.detect_objects_with_model(input_grid, "input", retry_count=3, use_hybrid=False)
@@ -2949,8 +3529,8 @@ Focus on extracting patterns that are GENERALIZABLE - rules that work for any in
         else:
             output_objects = []
         
-        # For test mode: Map training steps to test objects (Method 1)
-        if is_test and training_booklets and input_objects:
+        # For test mode: Map training steps to test objects (Method 1) - OLD CODE, should not reach here
+        if is_test and False:  # Disabled - using new V7 approach above
             print("\nTEST MODE: Mapping training steps to test objects...")
             object_step_mapping = self.map_training_steps_to_test_objects(
                 training_booklets, input_objects, input_grid
@@ -4070,6 +4650,57 @@ Based on the training examples, apply any final adjustments needed to complete t
         print(f"✅ COMPLETE: Generated {len(all_step_results)} steps")
         print(f"{'='*80}\n")
     
+    def _load_or_generate_generalized_steps(self, puzzle_id: str, all_training_examples: List[Dict]) -> Dict:
+        """Load existing generalized steps or generate them from training examples"""
+        patterns_file = Path("visual_step_results") / puzzle_id / "generalized_steps" / "generalized_patterns.json"
+        
+        # Try to load existing
+        if patterns_file.exists():
+            try:
+                with open(patterns_file, 'r', encoding='utf-8') as f:
+                    existing = json.load(f)
+                    print(f"✓ Loaded existing generalized steps from: {patterns_file}")
+                    return existing
+            except Exception as e:
+                print(f"  ⚠️ Error loading existing generalized steps: {e}")
+        
+        # Generate new generalized steps
+        print(f"\n{'='*80}")
+        print("GENERATING GENERALIZED STEPS FROM ALL TRAINING EXAMPLES")
+        print(f"{'='*80}\n")
+        
+        # Comprehensive analysis first
+        comprehensive_analysis = self.comprehensive_analysis(all_training_examples)
+        self._current_comprehensive_analysis = comprehensive_analysis
+        
+        # Generate transformation rule
+        print("Analyzing transformation rule from training examples...")
+        transformation_rule = self.analyze_transformation_rule(all_training_examples)
+        
+        # Generate generalized steps with full tool awareness
+        print("\nGenerating generalized step sequence with full tool awareness...")
+        generalized_step_sequence = self.generate_generalized_steps_v7(all_training_examples, comprehensive_analysis, transformation_rule)
+        
+        # Generate transition determinants (CONDITION, OBJECT) → transformations
+        print("\nGenerating transition determinants...")
+        transition_determinants = self.generate_transition_determinants_v7(all_training_examples, comprehensive_analysis)
+        
+        # Generate booklet pattern
+        print("\nGenerating booklet pattern...")
+        booklet_pattern = self.generate_booklet_pattern_v7(generalized_step_sequence, transition_determinants)
+        
+        # Save
+        self._save_generalized_booklet(puzzle_id, transition_determinants, 
+                                      generalized_step_sequence, booklet_pattern, 
+                                      transformation_rule)
+        
+        return {
+            "transition_determinants": transition_determinants,
+            "generalized_step_sequence": generalized_step_sequence,
+            "booklet_pattern": booklet_pattern,
+            "transformation_rule": transformation_rule
+        }
+    
     def _save_generalized_booklet(self, puzzle_id: str, transition_determinants: Dict,
                                  generalized_step_sequence: List[Dict], booklet_pattern: Dict,
                                  transformation_rule: Dict = None):
@@ -4081,7 +4712,7 @@ Based on the training examples, apply any final adjustments needed to complete t
             "puzzle_id": puzzle_id,
             "timestamp": datetime.now().isoformat(),
             "model": self.model,
-            "version": "v6",
+            "version": "v7",
             "transition_determinants": self._clean_for_json(transition_determinants) if transition_determinants else {},
             "generalized_step_sequence": self._clean_for_json(generalized_step_sequence) if generalized_step_sequence else [],
             "booklet_pattern": self._clean_for_json(booklet_pattern) if booklet_pattern else {},
@@ -4145,7 +4776,7 @@ Based on the training examples, apply any final adjustments needed to complete t
             "training_num": training_num,
             "timestamp": datetime.now().isoformat(),
             "model": self.model,
-            "version": "v6",
+            "version": "v7",
             "phase1_analysis": analysis if isinstance(analysis, str) else str(analysis),
             "input_grid": input_grid,
             "expected_output_grid": output_grid,
@@ -4172,7 +4803,7 @@ Based on the training examples, apply any final adjustments needed to complete t
                     "training_num": training_num,
                     "timestamp": datetime.now().isoformat(),
                     "model": self.model,
-                    "version": "v6",
+                    "version": "v7",
                     "num_steps": len(results)
                 }
                 with open(output_dir / "results.json", 'w', encoding='utf-8') as f:
@@ -4279,7 +4910,7 @@ def main():
     parser.add_argument('--test-all', action='store_true', help='Process all test examples')
     args = parser.parse_args()
     
-    gen = VisualStepGeneratorV6(args.model)
+    gen = VisualStepGeneratorV7(args.model)
     
     if args.test_all:
         import importlib.util
