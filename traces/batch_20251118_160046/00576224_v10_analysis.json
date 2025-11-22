@@ -1,0 +1,1985 @@
+{
+  "puzzle_id": "00576224",
+  "analysis": {
+    "raw_analysis": "1) TRANSFORMATION: 2×2 → 6×6, scale factor 3 per axis (area ×9), consistent.\n\n2) PATTERN: Output = 3×3 tiling of the 2×2 input where tile-rows alternate orientation: even tile-rows use the input as-is; odd tile-rows use the input with columns swapped (horizontal flip).\n\n3) KEY CHANGES:\n- Ex1: colors {7,9,4,3} preserved; repeated in 3×3 tiles; tile-rows 0,2,4 = original; 1,3 = columns swapped.\n- Ex2: colors {8,6,6,4} preserved; same 3×3 repeat with alternating horizontal flips of tiles.\n\n=== INPUT-INPUT COMPARISONS ===\n- Both inputs are 2×2. Positions: TL 7 vs 8, TR 9 vs 6, BL 4 vs 6, BR 3 vs 4. Same: 2×2 layout and four color entries; different actual color numbers.\n\n=== OUTPUT-OUTPUT COMPARISONS ===\n- Both outputs are 6×6 composed of a 3×3 grid of 2×2 tiles (nine tiles). Tile-rows 0 and 2 are the input as-is; tile-row 1 is the input with columns swapped. Only input colors appear.\n\n=== INPUT-OUTPUT COMPARISONS ===\n- Rule that fits all: make a 3×3 tiling of the 2×2 input (scale factor 3 per axis); for odd tile-rows horizontally flip the input; preserve color numbers.\n\nReference objects: the four 2×2 input cells stay intact as atomic tiles (their colors and 2×2 layout preserved).\n\nGrid pattern: scale factor 3 → output is 6×6 formed by a 3×3 tiling of the 2×2 input. Tile-rows alternate: tile-rows 1 and 3 use the input as-is, tile-row 2 uses each input tile with columns swapped (a horizontal flip), producing the checker alternation.\n\nObjects: the four colored squares are the recurring objects; their positions and horizontal-flip alternation determine the whole output pattern.\n\n=== GENERAL RULE ===\nTake the 2×2 input of color numbers and produce a 6×6 output by tiling that 2×2 block into a 3×3 grid of 2×2 tiles (scale factor 3 per axis). For tile-rows with even index (the top and bottom tile-rows) copy the 2×2 input exactly into every 2×2 tile in that row. For tile-rows with odd index (the middle tile-row) fill every 2×2 tile with the input horizontally flipped (swap left and right columns so positions [0,0]↔[0,1] and [1,0]↔[1,1]). Always use the same input color numbers (0–9) unchanged; each 2×2 tile is either the original input or its column-swapped version.\n",
+    "train_examples": [
+      {
+        "input": [
+          [
+            7,
+            9
+          ],
+          [
+            4,
+            3
+          ]
+        ],
+        "output": [
+          [
+            7,
+            9,
+            7,
+            9,
+            7,
+            9
+          ],
+          [
+            4,
+            3,
+            4,
+            3,
+            4,
+            3
+          ],
+          [
+            9,
+            7,
+            9,
+            7,
+            9,
+            7
+          ],
+          [
+            3,
+            4,
+            3,
+            4,
+            3,
+            4
+          ],
+          [
+            7,
+            9,
+            7,
+            9,
+            7,
+            9
+          ],
+          [
+            4,
+            3,
+            4,
+            3,
+            4,
+            3
+          ]
+        ]
+      },
+      {
+        "input": [
+          [
+            8,
+            6
+          ],
+          [
+            6,
+            4
+          ]
+        ],
+        "output": [
+          [
+            8,
+            6,
+            8,
+            6,
+            8,
+            6
+          ],
+          [
+            6,
+            4,
+            6,
+            4,
+            6,
+            4
+          ],
+          [
+            6,
+            8,
+            6,
+            8,
+            6,
+            8
+          ],
+          [
+            4,
+            6,
+            4,
+            6,
+            4,
+            6
+          ],
+          [
+            8,
+            6,
+            8,
+            6,
+            8,
+            6
+          ],
+          [
+            6,
+            4,
+            6,
+            4,
+            6,
+            4
+          ]
+        ]
+      }
+    ],
+    "test_input": null,
+    "structured_analysis": {
+      "general_rule": "Take the 2×2 input of color numbers and produce a 6×6 output by tiling that 2×2 block into a 3×3 grid of 2×2 tiles (scale factor 3 per axis). For tile-rows with even index (the top and bottom tile-rows) copy the 2×2 input exactly into every 2×2 tile in that row. For tile-rows with odd index (the middle tile-row) fill every 2×2 tile with the input horizontally flipped (swap left and right columns so positions [0,0]↔[0,1] and [1,0]↔[1,1]). Always use the same input color numbers (0–9) unchanged; each 2×2 tile is either the original input or its column-swapped version.\n"
+    },
+    "rule": "Take the 2×2 input of color numbers and produce a 6×6 output by tiling that 2×2 block into a 3×3 grid of 2×2 tiles (scale factor 3 per axis). For tile-rows with even index (the top and bottom tile-rows) copy the 2×2 input exactly into every 2×2 tile in that row. For tile-rows with odd index (the middle tile-row) fill every 2×2 tile with the input horizontally flipped (swap left and right columns so positions [0,0]↔[0,1] and [1,0]↔[1,1]). Always use the same input color numbers (0–9) unchanged; each 2×2 tile is either the original input or its column-swapped version.",
+    "analysis_part1": "1) TRANSFORMATION: 2×2 → 6×6, scale factor 3 per axis (area ×9), consistent.\n\n2) PATTERN: Output = 3×3 tiling of the 2×2 input where tile-rows alternate orientation: even tile-rows use the input as-is; odd tile-rows use the input with columns swapped (horizontal flip).\n\n3) KEY CHANGES:\n- Ex1: colors {7,9,4,3} preserved; repeated in 3×3 tiles; tile-rows 0,2,4 = original; 1,3 = columns swapped.\n- Ex2: colors {8,6,6,4} preserved; same 3×3 repeat with alternating horizontal flips of tiles.",
+    "analysis_part2": "=== INPUT-INPUT COMPARISONS ===\n- Both inputs are 2×2. Positions: TL 7 vs 8, TR 9 vs 6, BL 4 vs 6, BR 3 vs 4. Same: 2×2 layout and four color entries; different actual color numbers.\n\n=== OUTPUT-OUTPUT COMPARISONS ===\n- Both outputs are 6×6 composed of a 3×3 grid of 2×2 tiles (nine tiles). Tile-rows 0 and 2 are the input as-is; tile-row 1 is the input with columns swapped. Only input colors appear.\n\n=== INPUT-OUTPUT COMPARISONS ===\n- Rule that fits all: make a 3×3 tiling of the 2×2 input (scale factor 3 per axis); for odd tile-rows horizontally flip the input; preserve color numbers.",
+    "analysis_part3": "Reference objects: the four 2×2 input cells stay intact as atomic tiles (their colors and 2×2 layout preserved).\n\nGrid pattern: scale factor 3 → output is 6×6 formed by a 3×3 tiling of the 2×2 input. Tile-rows alternate: tile-rows 1 and 3 use the input as-is, tile-row 2 uses each input tile with columns swapped (a horizontal flip), producing the checker alternation.\n\nObjects: the four colored squares are the recurring objects; their positions and horizontal-flip alternation determine the whole output pattern.",
+    "comparison_sections": {
+      "input_input": "- Both inputs are 2×2. Positions: TL 7 vs 8, TR 9 vs 6, BL 4 vs 6, BR 3 vs 4. Same: 2×2 layout and four color entries; different actual color numbers.",
+      "output_output": "- Both outputs are 6×6 composed of a 3×3 grid of 2×2 tiles (nine tiles). Tile-rows 0 and 2 are the input as-is; tile-row 1 is the input with columns swapped. Only input colors appear.",
+      "input_output": "- Rule that fits all: make a 3×3 tiling of the 2×2 input (scale factor 3 per axis); for odd tile-rows horizontally flip the input; preserve color numbers."
+    }
+  },
+  "general_steps": [
+    {
+      "step_number": 1,
+      "instruction": "Step 1: Analyze and transform based on puzzle pattern",
+      "condition": "all_objects",
+      "transition": "transform"
+    }
+  ],
+  "training_booklets": [
+    {
+      "steps": [
+        {
+          "step_number": "1.1.1",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "CROP: Object 1 (A single connected 2x2 block in the top-left corner consisting of four distinct colored cells (top-left 7, top-right 9, bottom-left 4, bottom-right 3).)",
+          "substep_reasoning": "Cropping to object 1 to apply transform transformation. Bbox: [0, 0, 1, 1]",
+          "grid_before": [
+            [
+              7,
+              9,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              4,
+              3,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "grid_after": [
+            [
+              7,
+              9,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              4,
+              3,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "crop",
+          "tool_params": {
+            "bbox": [
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_crop_step": true,
+          "cropped_grid": [
+            [
+              7,
+              9
+            ],
+            [
+              4,
+              3
+            ]
+          ],
+          "is_subsubstep": true,
+          "shows_bbox_on_full_grid": true
+        },
+        {
+          "step_number": "1.1.2",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "TRANSFORM: Object 1 (transform)",
+          "substep_reasoning": "Applying transform to object 1 based on condition: all_objects",
+          "grid_before": [
+            [
+              7,
+              9
+            ],
+            [
+              4,
+              3
+            ]
+          ],
+          "grid_after": [
+            [
+              3,
+              4
+            ],
+            [
+              9,
+              7
+            ]
+          ],
+          "full_grid_before": [
+            [
+              7,
+              9,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              4,
+              3,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "transform",
+          "tool_params": {
+            "transformation_type": "transform"
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_cropped_view": true,
+          "parent_crop_step": "1.1.1",
+          "is_subsubstep": true,
+          "cropped_grid_before": [
+            [
+              7,
+              9
+            ],
+            [
+              4,
+              3
+            ]
+          ],
+          "cropped_grid_after": [
+            [
+              3,
+              4
+            ],
+            [
+              9,
+              7
+            ]
+          ],
+          "cropped_grid_target": [
+            [
+              7,
+              9
+            ],
+            [
+              4,
+              3
+            ]
+          ]
+        },
+        {
+          "step_number": "1.1.3",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "UNCROP: Object 1 back to full grid",
+          "substep_reasoning": "Placing transformed object 1 back into full grid at bbox [0, 0, 1, 1]",
+          "grid_before": [
+            [
+              7,
+              9,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              4,
+              3,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "grid_after": [
+            [
+              3,
+              4,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              9,
+              7,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "uncrop",
+          "tool_params": {
+            "bbox": [
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_uncrop_step": true,
+          "parent_crop_step": "1.1.1",
+          "is_subsubstep": true,
+          "transformed_cropped_grid": [
+            [
+              3,
+              4
+            ],
+            [
+              9,
+              7
+            ]
+          ],
+          "shows_current_whole_grid": true
+        }
+      ],
+      "input": [
+        [
+          7,
+          9
+        ],
+        [
+          4,
+          3
+        ]
+      ],
+      "output": [
+        [
+          7,
+          9,
+          7,
+          9,
+          7,
+          9
+        ],
+        [
+          4,
+          3,
+          4,
+          3,
+          4,
+          3
+        ],
+        [
+          9,
+          7,
+          9,
+          7,
+          9,
+          7
+        ],
+        [
+          3,
+          4,
+          3,
+          4,
+          3,
+          4
+        ],
+        [
+          7,
+          9,
+          7,
+          9,
+          7,
+          9
+        ],
+        [
+          4,
+          3,
+          4,
+          3,
+          4,
+          3
+        ]
+      ],
+      "current_grid": [
+        [
+          3,
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          9,
+          7,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "accuracy": 0.0,
+      "is_correct": false,
+      "predicted_grid": [
+        [
+          3,
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          9,
+          7,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected_grid": [
+        [
+          7,
+          9,
+          7,
+          9,
+          7,
+          9
+        ],
+        [
+          4,
+          3,
+          4,
+          3,
+          4,
+          3
+        ],
+        [
+          9,
+          7,
+          9,
+          7,
+          9,
+          7
+        ],
+        [
+          3,
+          4,
+          3,
+          4,
+          3,
+          4
+        ],
+        [
+          7,
+          9,
+          7,
+          9,
+          7,
+          9
+        ],
+        [
+          4,
+          3,
+          4,
+          3,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "steps": [
+        {
+          "step_number": "1.1.1",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "CROP: Object 1 (Connected 2x2 block in the top-left corner. Cells: (0,0)=8, (0,1)=6, (1,0)=6, (1,1)=4. All four cells touch orthogonally, forming a single distinct object.)",
+          "substep_reasoning": "Cropping to object 1 to apply transform transformation. Bbox: [0, 0, 1, 1]",
+          "grid_before": [
+            [
+              8,
+              6,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              6,
+              4,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "grid_after": [
+            [
+              8,
+              6,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              6,
+              4,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "crop",
+          "tool_params": {
+            "bbox": [
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_crop_step": true,
+          "cropped_grid": [
+            [
+              8,
+              6
+            ],
+            [
+              6,
+              4
+            ]
+          ],
+          "is_subsubstep": true,
+          "shows_bbox_on_full_grid": true
+        },
+        {
+          "step_number": "1.1.2",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "TRANSFORM: Object 1 (transform)",
+          "substep_reasoning": "Applying transform to object 1 based on condition: all_objects",
+          "grid_before": [
+            [
+              8,
+              6
+            ],
+            [
+              6,
+              4
+            ]
+          ],
+          "grid_after": [
+            [
+              4,
+              6
+            ],
+            [
+              6,
+              8
+            ]
+          ],
+          "full_grid_before": [
+            [
+              8,
+              6,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              6,
+              4,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "transform",
+          "tool_params": {
+            "transformation_type": "transform"
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_cropped_view": true,
+          "parent_crop_step": "1.1.1",
+          "is_subsubstep": true,
+          "cropped_grid_before": [
+            [
+              8,
+              6
+            ],
+            [
+              6,
+              4
+            ]
+          ],
+          "cropped_grid_after": [
+            [
+              4,
+              6
+            ],
+            [
+              6,
+              8
+            ]
+          ],
+          "cropped_grid_target": null
+        },
+        {
+          "step_number": "1.1.3",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "UNCROP: Object 1 back to full grid",
+          "substep_reasoning": "Placing transformed object 1 back into full grid at bbox [0, 0, 1, 1]",
+          "grid_before": [
+            [
+              8,
+              6,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              6,
+              4,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "grid_after": [
+            [
+              4,
+              6,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              6,
+              8,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "uncrop",
+          "tool_params": {
+            "bbox": [
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_uncrop_step": true,
+          "parent_crop_step": "1.1.1",
+          "is_subsubstep": true,
+          "transformed_cropped_grid": [
+            [
+              4,
+              6
+            ],
+            [
+              6,
+              8
+            ]
+          ],
+          "shows_current_whole_grid": true
+        }
+      ],
+      "input": [
+        [
+          8,
+          6
+        ],
+        [
+          6,
+          4
+        ]
+      ],
+      "output": [
+        [
+          8,
+          6,
+          8,
+          6,
+          8,
+          6
+        ],
+        [
+          6,
+          4,
+          6,
+          4,
+          6,
+          4
+        ],
+        [
+          6,
+          8,
+          6,
+          8,
+          6,
+          8
+        ],
+        [
+          4,
+          6,
+          4,
+          6,
+          4,
+          6
+        ],
+        [
+          8,
+          6,
+          8,
+          6,
+          8,
+          6
+        ],
+        [
+          6,
+          4,
+          6,
+          4,
+          6,
+          4
+        ]
+      ],
+      "current_grid": [
+        [
+          4,
+          6,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          6,
+          8,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "accuracy": 0.0,
+      "is_correct": false,
+      "predicted_grid": [
+        [
+          4,
+          6,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          6,
+          8,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected_grid": [
+        [
+          8,
+          6,
+          8,
+          6,
+          8,
+          6
+        ],
+        [
+          6,
+          4,
+          6,
+          4,
+          6,
+          4
+        ],
+        [
+          6,
+          8,
+          6,
+          8,
+          6,
+          8
+        ],
+        [
+          4,
+          6,
+          4,
+          6,
+          4,
+          6
+        ],
+        [
+          8,
+          6,
+          8,
+          6,
+          8,
+          6
+        ],
+        [
+          6,
+          4,
+          6,
+          4,
+          6,
+          4
+        ]
+      ]
+    }
+  ],
+  "test_booklets": [
+    {
+      "steps": [
+        {
+          "step_number": "1.1.1",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "CROP: Object 1 (A single connected 2x2 block in the top-left composed of four adjacent nonzero cells (values 3,2 in the top row and 7,8 in the bottom row).)",
+          "substep_reasoning": "Cropping to object 1 to apply transform transformation. Bbox: [0, 0, 1, 1]",
+          "grid_before": [
+            [
+              3,
+              2,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              7,
+              8,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "grid_after": [
+            [
+              3,
+              2,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              7,
+              8,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "crop",
+          "tool_params": {
+            "bbox": [
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_crop_step": true,
+          "cropped_grid": [
+            [
+              3,
+              2
+            ],
+            [
+              7,
+              8
+            ]
+          ],
+          "is_subsubstep": true,
+          "shows_bbox_on_full_grid": true
+        },
+        {
+          "step_number": "1.1.2",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "TRANSFORM: Object 1 (transform)",
+          "substep_reasoning": "Applying transform to object 1 based on condition: all_objects",
+          "grid_before": [
+            [
+              3,
+              2
+            ],
+            [
+              7,
+              8
+            ]
+          ],
+          "grid_after": [
+            [
+              8,
+              7
+            ],
+            [
+              2,
+              3
+            ]
+          ],
+          "full_grid_before": [
+            [
+              3,
+              2,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              7,
+              8,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "transform",
+          "tool_params": {
+            "transformation_type": "transform"
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_cropped_view": true,
+          "parent_crop_step": "1.1.1",
+          "is_subsubstep": true,
+          "cropped_grid_before": [
+            [
+              3,
+              2
+            ],
+            [
+              7,
+              8
+            ]
+          ],
+          "cropped_grid_after": [
+            [
+              8,
+              7
+            ],
+            [
+              2,
+              3
+            ]
+          ],
+          "cropped_grid_target": null
+        },
+        {
+          "step_number": "1.1.3",
+          "object_substep": "1.1",
+          "general_step": 1,
+          "instruction": "UNCROP: Object 1 back to full grid",
+          "substep_reasoning": "Placing transformed object 1 back into full grid at bbox [0, 0, 1, 1]",
+          "grid_before": [
+            [
+              3,
+              2,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              7,
+              8,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "grid_after": [
+            [
+              8,
+              7,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              2,
+              3,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "tool_used": "uncrop",
+          "tool_params": {
+            "bbox": [
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "bbox": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "object_num": 1,
+          "is_uncrop_step": true,
+          "parent_crop_step": "1.1.1",
+          "is_subsubstep": true,
+          "transformed_cropped_grid": [
+            [
+              8,
+              7
+            ],
+            [
+              2,
+              3
+            ]
+          ],
+          "shows_current_whole_grid": true
+        }
+      ],
+      "input": [
+        [
+          3,
+          2
+        ],
+        [
+          7,
+          8
+        ]
+      ],
+      "output": [
+        [
+          3,
+          2,
+          3,
+          2,
+          3,
+          2
+        ],
+        [
+          7,
+          8,
+          7,
+          8,
+          7,
+          8
+        ],
+        [
+          2,
+          3,
+          2,
+          3,
+          2,
+          3
+        ],
+        [
+          8,
+          7,
+          8,
+          7,
+          8,
+          7
+        ],
+        [
+          3,
+          2,
+          3,
+          2,
+          3,
+          2
+        ],
+        [
+          7,
+          8,
+          7,
+          8,
+          7,
+          8
+        ]
+      ],
+      "current_grid": [
+        [
+          8,
+          7,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "predicted_grid": [
+        [
+          8,
+          7,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected_grid": [
+        [
+          3,
+          2,
+          3,
+          2,
+          3,
+          2
+        ],
+        [
+          7,
+          8,
+          7,
+          8,
+          7,
+          8
+        ],
+        [
+          2,
+          3,
+          2,
+          3,
+          2,
+          3
+        ],
+        [
+          8,
+          7,
+          8,
+          7,
+          8,
+          7
+        ],
+        [
+          3,
+          2,
+          3,
+          2,
+          3,
+          2
+        ],
+        [
+          7,
+          8,
+          7,
+          8,
+          7,
+          8
+        ]
+      ],
+      "accuracy": 0.0,
+      "is_correct": false
+    }
+  ],
+  "timestamp": "2025-11-18T16:09:12.279392",
+  "summary": {
+    "num_training_examples": 2,
+    "num_test_examples": 1,
+    "num_general_steps": 1,
+    "num_training_booklets": 2,
+    "num_test_booklets": 1,
+    "analysis_length": 2194,
+    "has_structured_analysis": true,
+    "training_accuracy": 0.0,
+    "test_accuracy": 0.0,
+    "training_correct": 0,
+    "training_total": 2,
+    "test_correct": 0,
+    "test_total": 1
+  }
+}

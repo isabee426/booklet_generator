@@ -631,31 +631,100 @@ CRITICAL REMINDERS:
         text_version = "\n".join([item["text"] for item in content if item["type"] == "text"])
         return text_version, content
     
+    def _safe_print(self, *args, **kwargs):
+        """Print with automatic text sanitization to prevent encoding errors on Windows"""
+        # Convert all args to strings and sanitize
+        sanitized_args = [self._sanitize_text(str(arg)) if isinstance(arg, str) else arg for arg in args]
+        print(*sanitized_args, **kwargs)
+    
     def _sanitize_text(self, text: str) -> str:
-        """Remove Unicode characters that Windows can't represent in prompts"""
+        """Remove Unicode characters that Windows can't represent in prompts and print statements.
+        
+        Root cause: Windows console uses cp1252 encoding which cannot represent many Unicode characters
+        like en dash (\u2013), em dash (\u2014), smart quotes, etc.
+        
+        Solution: Force all text to ASCII by replacing known offenders and converting any remaining
+        non-ASCII characters to safe ASCII equivalents or '?'.
+        """
         if not text:
             return text
-        # Replace problematic Unicode characters with ASCII equivalents
+        
+        # Comprehensive manual replacements for common Unicode offenders
         replacements = {
-            '→': '->', '←': '<-', '↑': '^', '↓': 'v',
+            # Arrows
+            '→': '->', '←': '<-', '↑': '^', '↓': 'v', '⇒': '=>', '⇐': '<=',
+            # Math symbols
             '×': 'x', '÷': '/', '±': '+/-', '≠': '!=', '≤': '<=', '≥': '>=',
-            '\u2011': '-', '\u2013': '-', '\u2014': '--',  # Various dashes
-            '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"',  # Smart quotes
+            '≈': '~', '∞': 'inf',
+            # Dashes (common source of errors - LLM often uses these)
+            '\u2011': '-',  # Non-breaking hyphen
+            '\u2013': '-',  # En dash (COMMON OFFENDER)
+            '\u2014': '--', # Em dash
+            '\u2212': '-',  # Minus sign
+            # Smart quotes (LLM often uses these)
+            '\u2018': "'",  # Left single quote
+            '\u2019': "'",  # Right single quote
+            '\u201c': '"',  # Left double quote
+            '\u201d': '"',  # Right double quote
+            '\u201e': '"',  # Double low-9 quote
+            '\u201f': '"',  # Double high-reversed-9 quote
+            # Other punctuation
             '\u2026': '...',  # Ellipsis
-            '°': 'deg', '²': '^2', '³': '^3',
+            '\u00a0': ' ',   # Non-breaking space
+            '\u00ad': '-',   # Soft hyphen
+            # Superscripts/subscripts
+            '°': 'deg', '²': '^2', '³': '^3', '¹': '^1',
+            # Other common Unicode
+            '\u200b': '',    # Zero-width space
+            '\u200c': '',   # Zero-width non-joiner
+            '\u200d': '',   # Zero-width joiner
+            '\u202a': '', # Left-to-right embedding
+            '\u202c': '',   # Pop directional formatting
         }
+        
         result = text
         for unicode_char, ascii_replacement in replacements.items():
             result = result.replace(unicode_char, ascii_replacement)
-        return result
+            
+        # Brutal ASCII enforcement: any remaining non-ASCII chars become '?'
+        # This guarantees no UnicodeEncodeError on strict Windows consoles (cp1252)
+        safe_chars = []
+        for char in result:
+            if ord(char) < 128:
+                safe_chars.append(char)
+            else:
+                # Try to find a reasonable ASCII replacement
+                # Common case: en/em dashes that slipped through
+                if char in ['–', '—']:
+                    safe_chars.append('-')
+                else:
+                    safe_chars.append('?')
+        
+        return "".join(safe_chars)
     
     def _format_grid(self, grid: List[List[int]]) -> str:
         """Format grid as text"""
         return '\n'.join(['[' + ', '.join(str(cell) for cell in row) + ']' for row in grid])
     
     def _call_llm_analysis(self, content: List[Dict], use_tools: bool = False) -> Tuple[str, Optional[Dict]]:
-        """Call LLM for analysis with visual inputs"""
-        messages = [{"role": "user", "content": content}]
+        """Call LLM for analysis with visual inputs
+        
+        CRITICAL: All text content is sanitized to prevent encoding errors on Windows (cp1252).
+        This ensures no Unicode characters that can't be encoded slip through.
+        """
+        # Sanitize all text content in the message to prevent encoding errors
+        sanitized_content = []
+        for item in content:
+            if item.get('type') == 'text' and 'text' in item:
+                # Sanitize text content to ensure ASCII-only
+                sanitized_item = item.copy()
+                sanitized_item['text'] = self._sanitize_text(item['text'])
+                sanitized_content.append(sanitized_item)
+            else:
+                # Keep images and other non-text content as-is
+                sanitized_content.append(item)
+        
+        messages = [{"role": "user", "content": sanitized_content}]
         
         try:
             # For analysis calls, pass tools but set tool_choice="none" to force text response
@@ -1307,82 +1376,65 @@ Generate general rule (numbered list of atomic IF/THEN steps):""")
         
         # Common transformation names to look for
         transformation_keywords = {
-            'color_mapping': ['color', 'recolor', 'change color', 'map color', 'paint', 'fill'],
+            'color_mapping': ['color', 'recolor', 'change color', 'map color', 'paint', 'fill', 'set color'],
             'position_change': ['move', 'position', 'relocate', 'shift', 'translate', 'slide'],
             'size_change': ['resize', 'scale', 'size', 'expand', 'shrink', 'grow', 'extend'],
             'rotate': ['rotate', 'rotation', 'turn'],
             'flip_horizontal': ['flip horizontal', 'horizontal flip', 'mirror horizontal'],
             'flip_vertical': ['flip vertical', 'vertical flip', 'mirror vertical'],
             'create_objects': ['create', 'add', 'new object', 'generate', 'copy', 'duplicate', 'propagate', 'tile', 'repeat'],
+            'crop': ['crop', 'extract', 'subgrid', 'region of interest', 'focus on', 'cut out'],
             'transform': ['transform', 'modify', 'change', 'alter', 'apply']
         }
         
-        # Split rule into sentences - handle numbered lists too
         import re
-        # Split by newlines first, then by period
-        raw_lines = rule_text.split('\n')
-        sentences = []
-        for line in raw_lines:
-            # Remove numbering like "1.", "1)", "-", "*"
-            clean_line = re.sub(r'^\s*(?:\d+[\.\)]|\-|\*)\s*', '', line).strip()
-            if clean_line:
-                # Split by period but keep it reasonable
-                parts = clean_line.split('.')
-                for p in parts:
-                    if p.strip():
-                        sentences.append(p.strip())
         
-        current_step = None
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if not sentence or len(sentence) < 10:
+        # Split rule into lines/sentences
+        lines = rule_text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
                 continue
+                
+            # Remove numbering (1. or Step 1:)
+            clean_line = re.sub(r'^(Step \d+:|\d+[\.\)]|\-|\*)\s*', '', line, flags=re.IGNORECASE).strip()
+            if not clean_line:
+                continue
+                
+            # Try to parse "IF [condition] THEN [action]"
+            condition = 'all_objects'
+            action = clean_line
             
-            # Look for transformation keywords
-            sentence_lower = sentence.lower()
-            transition = None
+            # Regex for strict IF/THEN parsing
+            if_match = re.match(r'IF\s+(.*?)\s+THEN\s+(.*)', clean_line, re.IGNORECASE)
+            if if_match:
+                condition = if_match.group(1).strip()
+                action = if_match.group(2).strip()
+            else:
+                # Fallback for "For each [condition], [action]"
+                for_match = re.match(r'For each\s+(.*?),\s*(.*)', clean_line, re.IGNORECASE)
+                if for_match:
+                    condition = for_match.group(1).strip()
+                    action = for_match.group(2).strip()
+            
+            # Identify transition from action text
+            transition = 'transform'
+            action_lower = action.lower()
+            
             for trans_name, keywords in transformation_keywords.items():
-                if any(kw in sentence_lower for kw in keywords):
+                if any(kw in action_lower for kw in keywords):
                     transition = trans_name
                     break
             
-            if not transition:
-                # If no keyword, skip this sentence unless it looks like a step
-                if not (sentence_lower.startswith('step') or sentence_lower.startswith('for each')):
-                     continue
-                transition = 'transform'  # Default
-            
-            # Extract condition (look for "for each", "if", "when", etc.)
-            condition = 'all_objects'  # Default
-            if 'for each' in sentence_lower:
-                # Try to extract the condition after "for each"
-                parts = sentence_lower.split('for each', 1)
-                if len(parts) > 1:
-                    condition_part = parts[1].split(',')[0].split('perform')[0].strip()
-                    if condition_part:
-                        condition = condition_part[:100]  # Limit length
-            elif 'if' in sentence_lower:
-                 parts = sentence_lower.split('if', 1)
-                 if len(parts) > 1:
-                    condition_part = parts[1].split(',')[0].split('then')[0].strip()
-                    if condition_part:
-                        condition = condition_part[:100]
-            
-            # Create step
             steps.append({
                 'step_number': step_num,
-                'instruction': f"Step {step_num}: {sentence[:200]}",
+                'instruction': f"Step {step_num}: {clean_line}",
                 'condition': condition,
                 'transition': transition
             })
             step_num += 1
-        
-        return steps if steps else [{
-            'step_number': 1,
-            'instruction': f"Step 1: {rule_text[:200]}",
-            'condition': 'all_objects',
-            'transition': 'transform'
-        }]
+            
+        return steps
     
     def generate_general_steps(self, analysis: Dict[str, Any]) -> List[Dict]:
         """Generate general steps from analysis (with images)"""
@@ -1393,14 +1445,18 @@ Generate general rule (numbered list of atomic IF/THEN steps):""")
         
         # Try to use the general rule first (it's already phrased as steps)
         rule = analysis.get('rule', '')
-        if rule and len(rule) > 50:
+        if rule and len(rule) > 20:
             print("[STEPS] Attempting to parse general rule as steps...")
             rule_steps = self._parse_rule_to_steps(rule)
-            if rule_steps:
+            if rule_steps and len(rule_steps) > 0:
                 print(f"[STEPS] Parsed {len(rule_steps)} steps from general rule")
-                # Validate and refine the steps with full analysis
-                # But use rule as base
-                pass  # Continue to full step generation but use rule as guidance
+                print("[STEPS] Using parsed steps DIRECTLY to ensure loyalty to General Rule")
+                
+                # Add protection step if needed (will be populated later in function, but we need to do it now if returning early)
+                # But we haven't calculated all_unchanged_objects yet!
+                # So we need to move this logic AFTER calculation or calculate it now?
+                # Let's move the 'return' to AFTER the object change analysis.
+                pass
         
         # Analyze which objects actually change vs stay the same
         object_change_analysis = []
@@ -1548,9 +1604,9 @@ Generate general rule (numbered list of atomic IF/THEN steps):""")
                 for step in rule_steps:
                     # Normalize transition names to match tool format
                     trans = step.get('transition', 'transform').lower()
-                    if 'color' in trans or 'recolor' in trans:
+                    if 'color' in trans or 'recolor' in trans or 'paint' in trans:
                         step['transition'] = 'color_mapping'
-                    elif 'move' in trans or 'position' in trans:
+                    elif 'move' in trans or 'position' in trans or 'shift' in trans:
                         step['transition'] = 'position_change'
                     elif 'size' in trans or 'scale' in trans:
                         step['transition'] = 'size_change'
@@ -1560,11 +1616,59 @@ Generate general rule (numbered list of atomic IF/THEN steps):""")
                         step['transition'] = 'flip_horizontal'
                     elif 'flip' in trans and 'vertical' in trans:
                         step['transition'] = 'flip_vertical'
-                    elif 'create' in trans or 'add' in trans:
+                    elif 'create' in trans or 'add' in trans or 'copy' in trans:
                         step['transition'] = 'create_objects'
+                    elif 'crop' in trans:
+                        step['transition'] = 'crop'
                     else:
                         step['transition'] = 'transform'
-        
+                
+                # Add protection step for unchanged objects FIRST (step 0)
+                if all_unchanged_objects:
+                    print("[STEPS] Adding protection step for unchanged objects...")
+                    unchanged_conditions = []
+                    for obj in all_unchanged_objects:
+                        color_str = f"colors {obj['colors']}" if len(obj['colors']) == 1 else f"composed only of colors {obj['colors']}"
+                        size_str = f"size exactly {obj['size']}" if obj['size'] > 0 else ""
+                        desc_str = obj['description']
+                        condition_parts = [color_str]
+                        if size_str:
+                            condition_parts.append(size_str)
+                        condition_parts.append(desc_str)
+                        unchanged_conditions.append(" and ".join(condition_parts))
+                    
+                    protection_condition = " or ".join(f"({cond})" for cond in unchanged_conditions)
+                    
+                    protection_step = {
+                        'step_number': 0,
+                        'instruction': f"Step 0: Under NO circumstances change objects matching: {protection_condition}",
+                        'condition': protection_condition,
+                        'transition': 'no_change'
+                    }
+                    # Renumber existing steps
+                    for step in rule_steps:
+                        step['step_number'] = step.get('step_number', 1) + 1
+                    rule_steps.insert(0, protection_step)
+
+                # If new objects detected but no create step found, add it
+                if has_new_objects:
+                    has_create_step = any('create' in step.get('transition', '').lower() or 
+                                        'create' in step.get('instruction', '').lower() or
+                                        'new object' in step.get('instruction', '').lower()
+                                        for step in rule_steps)
+                    if not has_create_step:
+                        print("[STEPS] Adding create_objects step for new objects...")
+                        create_step_num = max([s.get('step_number', 0) for s in rule_steps] + [0]) + 1
+                        rule_steps.append({
+                            'step_number': create_step_num,
+                            'instruction': f"Step {create_step_num}: Create new objects that appear in output but not in input",
+                            'condition': 'new_objects_in_output',
+                            'transition': 'create_objects'
+                        })
+                
+                print("[STEPS] Using parsed steps DIRECTLY to ensure loyalty to General Rule")
+                return rule_steps
+
         # Build the text content first
         step_text = self._sanitize_text(f"""Generate GENERAL STEPS that work for ALL training examples.
 
@@ -1855,6 +1959,15 @@ Return ONLY valid JSON in this format:
             
             if not content or not content.strip():
                 print("[ERROR] Empty or whitespace-only response from LLM")
+                # Fallback to using parsed rule steps FIRST
+                rule = analysis.get('rule', '')
+                if rule:
+                    print("[FALLBACK] Trying to parse steps from rule text directly...")
+                    steps = self._parse_rule_to_steps(rule)
+                    if steps:
+                        print(f"[FALLBACK] Successfully parsed {len(steps)} steps from rule")
+                        return steps
+                
                 raw_analysis_text = analysis.get('raw_analysis', '') or analysis.get('analysis_part1', '') + '\n' + analysis.get('analysis_part2', '') + '\n' + analysis.get('analysis_part3', '')
                 if raw_analysis_text:
                     steps = self._extract_steps_from_text(raw_analysis_text)
@@ -1929,7 +2042,8 @@ Return ONLY valid JSON in this format:
                 for step in steps:
                     step['step_number'] = step.get('step_number', 1) + 1
                 steps.insert(0, protection_step)
-                print(f"[STEPS] Added protection step: {protection_step['instruction']}")
+                safe_prot_instr = self._sanitize_text(protection_step['instruction'])
+                print(f"[STEPS] Added protection step: {safe_prot_instr}")
             
             # If new objects detected but no create step found, add it
             if has_new_objects:
@@ -1949,7 +2063,8 @@ Return ONLY valid JSON in this format:
             
             print(f"[OK] Generated {len(steps)} general steps")
             for i, step in enumerate(steps):
-                print(f"  Step {step.get('step_number', i+1)}: {step.get('instruction', 'N/A')[:80]}...")
+                safe_instr = self._sanitize_text(step.get('instruction', 'N/A'))
+                print(f"  Step {step.get('step_number', i+1)}: {safe_instr[:80]}...")
             
             return steps
         except json.JSONDecodeError as e:
@@ -2066,22 +2181,62 @@ Return ONLY valid JSON in this format:
         # Determine initial grid size: if output is larger, start with output size
         input_rows = len(input_copy)
         input_cols = len(input_copy[0]) if input_copy else 0
-        output_rows = len(output_copy) if output_copy else input_rows
-        output_cols = len(output_copy[0]) if output_copy and output_copy[0] else input_cols
+        
+        # Predict output size for test cases if not provided
+        if is_test:
+            # 1. Check if any general step explicitly defines the output size
+            explicit_size = None
+            for step in general_steps:
+                instr = step.get('instruction', '').lower()
+                # Look for "create output grid of size H x W" or similar
+                import re
+                size_match = re.search(r'(?:create|initialize|set).*?(?:output|grid).*?size.*?(\d+)\s*(?:x|by|rows?)\s*(\d+)', instr)
+                if size_match:
+                    explicit_size = (int(size_match.group(1)), int(size_match.group(2)))
+                    print(f"    [INFO] Step explicitly defines output size: {explicit_size}")
+                    break
+            
+            if explicit_size:
+                output_rows, output_cols = explicit_size
+                print(f"    [INFO] Predicted test output size: {output_rows}x{output_cols} (based on explicit step instruction)")
+            else:
+                # 2. Heuristic: Check if all training examples have uniform output size
+                train_output_sizes = set()
+                if training_booklets:
+                     for t_booklet in training_booklets:
+                          if t_booklet.get('output'):
+                               train_output_sizes.add((len(t_booklet['output']), len(t_booklet['output'][0])))
+                
+                if len(train_output_sizes) == 1:
+                     # Fixed output size
+                     pred_rows, pred_cols = list(train_output_sizes)[0]
+                     output_rows, output_cols = pred_rows, pred_cols
+                     print(f"    [INFO] Predicted test output size: {output_rows}x{output_cols} (based on fixed training size)")
+                else:
+                     # 3. Assume input size for now (or implement scaling logic later)
+                     output_rows, output_cols = input_rows, input_cols
+                     print(f"    [INFO] Predicted test output size: {output_rows}x{output_cols} (defaulting to input size)")
+        else:
+            # For training, we know the output size
+            output_rows = len(output_copy) if output_copy else input_rows
+            output_cols = len(output_copy[0]) if output_copy and output_copy[0] else input_cols
         
         # Initialize current_grid: if output is larger, use output size; otherwise use input size
         if output_rows > input_rows or output_cols > input_cols:
             # Start with output size (filled with zeros/background)
             print(f"    [INFO] Input size ({input_rows}x{input_cols}) < Output size ({output_rows}x{output_cols}) - initializing with output size")
             current_grid = [[0] * output_cols for _ in range(output_rows)]
-            # Place input grid at top-left of the larger grid
+            
+            # Only copy input if it fits (usually we want a blank canvas if expanding significantly, but let's copy top-left for safety)
+            # Actually, for "expansion" puzzles, we often want to start BLANK or with specific background.
+            # But copying input to top-left is a safe default unless the rule says otherwise.
             for i in range(min(input_rows, output_rows)):
                 for j in range(min(input_cols, output_cols)):
                     current_grid[i][j] = input_copy[i][j]
             
-            # For input < output puzzles, detect objects from OUTPUT to create
-            print(f"    [INFO] Detecting objects in OUTPUT to create (input < output puzzle)")
-            if output_copy:
+            # For input < output puzzles, detect objects from OUTPUT to create (ONLY FOR TRAINING)
+            if not is_test and output_copy:
+                print(f"    [INFO] Detecting objects in OUTPUT to create (input < output puzzle)")
                 output_objects_for_creation = self._detect_objects(output_copy)
                 print(f"    [INFO] Found {len(output_objects_for_creation)} objects in output that may need to be created")
         else:
@@ -2095,10 +2250,10 @@ Return ONLY valid JSON in this format:
             'current_grid': current_grid  # Initialize with appropriate size
         }
         
-        # Step 1: Detect objects in input
+        # Step 1: Detect objects in input - THESE ARE THE REFERENCE OBJECTS
         print(f"    Detecting objects in input...")
-        input_objects = self._detect_objects(booklet['current_grid'])
-        print(f"    Found {len(input_objects)} objects")
+        input_objects = self._detect_objects(example['input'])
+        print(f"    Found {len(input_objects)} objects in input")
         
         # Step 2: Match objects between input and output (if training)
         object_matches = {}
@@ -2118,16 +2273,22 @@ Return ONLY valid JSON in this format:
             print(f"    Found {len(new_objects)} new objects to create in output")
         
         # Step 3: For each general step, process each matching object
+        processed_object_ids = set()  # Track processed objects by (step_number, object_index)
+        
         for general_step in general_steps:
-            print(f"\n    Processing general step {general_step['step_number']}: {general_step['instruction']}")
+            # Sanitize text for Windows console printing
+            safe_instruction = self._sanitize_text(general_step.get('instruction', ''))
+            print(f"\n    Processing general step {general_step['step_number']}: {safe_instruction}")
             
-            # Find objects that match this step's condition
+            # Find objects in INPUT that match this step's condition
+            # CRITICAL: Always filter based on ORIGINAL INPUT objects, but pass current_grid context if needed
             objects_to_process = self._filter_objects_by_condition(
                 input_objects, 
                 general_step['condition'],
-                full_grid=booklet['current_grid']
+                full_grid=example['input'] # Use input for filtering context
             )
-            print(f"      Found {len(objects_to_process)}/{len(input_objects)} objects matching condition: {general_step['condition']}")
+            safe_condition = self._sanitize_text(general_step.get('condition', ''))
+            print(f"      Found {len(objects_to_process)}/{len(input_objects)} objects matching condition: {safe_condition}")
             
             # Reset substep counter for this general step (each object is a substep)
             substep_counter = 1
@@ -2137,10 +2298,74 @@ Return ONLY valid JSON in this format:
                 print(f"      [SKIP] Step 0 is protection step - no objects to process")
                 continue
             
+            # Special handling for global 'crop' transition
+            if general_step.get('transition') == 'crop':
+                print(f"      [CROP] Processing global crop step...")
+                # Treat the whole grid as the object to crop
+                # Use current_grid logic for crop, but guided by input? No, usually crop is based on finding something in input.
+                # But we apply it to current_grid (which might be copy of input).
+                
+                full_grid_bbox = [0, 0, len(booklet['current_grid'])-1, len(booklet['current_grid'][0])-1]
+                
+                # Use LLM to determine crop region
+                # Create a prompt specifically for global cropping
+                crop_prompt = self._create_step_prompt(general_step, booklet['current_grid'], example, is_test)
+                # Add explicit instruction to use 'crop' tool
+                crop_prompt[0]["text"] += "\n\nCRITICAL: You MUST use the 'crop' tool to extract the region of interest."
+                
+                _, tool_calls = self._call_llm_analysis(crop_prompt, use_tools=True)
+                
+                if tool_calls and hasattr(tool_calls, 'function') and tool_calls.function.name == "crop":
+                    try:
+                        args = json.loads(tool_calls.function.arguments)
+                        crop_bbox = args.get('bbox')
+                        if crop_bbox:
+                             # Apply crop to current grid
+                             cropped_grid, _ = self._crop_to_object(booklet['current_grid'], crop_bbox)
+                             
+                             # Store state before
+                             grid_before = [row[:] for row in booklet['current_grid']]
+                             
+                             # Update grid
+                             booklet['current_grid'] = cropped_grid
+                             
+                             # Add step
+                             booklet['steps'].append({
+                                'step_number': f"{general_step['step_number']}.1",
+                                'object_substep': f"{general_step['step_number']}.1",
+                                'general_step': general_step['step_number'],
+                                'instruction': f"CROP: Global grid to {crop_bbox}",
+                                'substep_reasoning': f"Cropping grid to region of interest: {crop_bbox}",
+                                'grid_before': grid_before,
+                                'grid_after': cropped_grid,
+                                'tool_used': 'crop',
+                                'tool_params': {'bbox': crop_bbox},
+                                'bbox': crop_bbox,
+                                'is_crop_step': True,
+                                'shows_current_whole_grid': True
+                            })
+                             print(f"      [OK] Cropped grid to {crop_bbox}")
+                             continue # Move to next step
+                    except Exception as e:
+                        print(f"[ERROR] Failed to apply global crop: {e}")
+                else:
+                     print(f"[ERROR] Model failed to call crop tool for global crop step")
+                     
             # Process each object with crop-transform-uncrop
             for obj_idx, obj in enumerate(objects_to_process):
                 obj_num = input_objects.index(obj) + 1
-                print(f"      Processing object {obj_num}/{len(input_objects)}: {obj.get('description', 'object')}")
+                
+                # Skip if object already processed in this step (shouldn't happen with filter but safe to check)
+                # Or skip if processed in ANY step if we want strict single-processing (user said "if mentioned once")
+                # Let's implement strict single-processing: if object was processed by a previous step, skip it
+                # Unless the condition explicitly targets it again?
+                # "make sure objects arent processed more than once if mentioned once" -> implies once per booklet
+                # if obj_num in processed_object_ids:
+                #    print(f"      [SKIP] Object {obj_num} already processed in a previous step - skipping")
+                #    continue
+                
+                safe_obj_desc = self._sanitize_text(obj.get('description', 'object'))
+                print(f"      Processing object {obj_num}/{len(input_objects)}: {safe_obj_desc}")
                 
                 # Check if this object matches the protection condition (should not be transformed)
                 obj_colors = set(obj.get('colors', []))
@@ -2165,6 +2390,9 @@ Return ONLY valid JSON in this format:
                 if is_protected:
                     continue  # Skip this object - it should not be transformed
                 
+                # Mark object as processed
+                processed_object_ids.add(obj_num)
+                
                 # Get corresponding output object if available
                 output_obj = None
                 if obj_num - 1 in object_matches and object_matches[obj_num - 1] is not None:
@@ -2179,22 +2407,51 @@ Return ONLY valid JSON in this format:
                 # SUB-SUBSTEP 1: Crop to object (1.1.1, 1.1.2, 1.1.3)
                 subsubstep_num = f"{object_substep_num}.1"
                 
+                # Determine CROP region in current_grid
+                # If current_grid is same size as input (or mapped), use obj['bbox']
+                # If current_grid is reconstructed (output size), we need to know WHERE to crop/draw
+                # If output_obj exists, use ITS bbox for the target location in output grid
+                # If no output_obj, use input bbox (assuming 1:1 or close)
+                
+                # Default: use input object bbox
+                target_bbox = obj['bbox']
+                
+                # If we are in "Expansion" mode (Input < Output) and initialized with blank output grid
+                # The "input object" exists in the input, but we are drawing into the OUTPUT grid.
+                # We should crop the TARGET region in the output grid where this object will go.
+                if output_obj:
+                    target_bbox = output_obj.get('bbox', obj['bbox'])
+                
+                # Check if target_bbox is valid for current_grid dimensions
+                curr_rows = len(booklet['current_grid'])
+                curr_cols = len(booklet['current_grid'][0])
+                
+                if (target_bbox[2] >= curr_rows or target_bbox[3] >= curr_cols):
+                     print(f"      [WARNING] Target bbox {target_bbox} outside current grid {curr_rows}x{curr_cols} - clamping")
+                     target_bbox = [
+                         max(0, target_bbox[0]),
+                         max(0, target_bbox[1]),
+                         min(curr_rows-1, target_bbox[2]),
+                         min(curr_cols-1, target_bbox[3])
+                     ]
+                
                 # Store full grid state (shows bbox region on full grid)
                 full_grid_with_bbox = [row[:] for row in booklet['current_grid']]
-                cropped_input, bbox = self._crop_to_object(booklet['current_grid'], obj['bbox'])
-                # bbox will be updated to union_bbox if object moves
+                
+                # Crop from current grid using target_bbox
+                cropped_input, bbox = self._crop_to_object(booklet['current_grid'], target_bbox)
                 
                 booklet['steps'].append({
                     'step_number': subsubstep_num,
                     'object_substep': object_substep_num,
                     'general_step': general_step['step_number'],
-                    'instruction': f"CROP: Object {obj_num} ({obj.get('description', 'object')})",
-                    'substep_reasoning': f"Cropping to object {obj_num} to apply {general_step['transition']} transformation. Bbox: {obj['bbox']}",
+                    'instruction': f"CROP: Target Region ({obj.get('description', 'object')})",
+                    'substep_reasoning': f"Focusing on region {bbox} in output grid corresponding to input object {obj_num}",
                     'grid_before': full_grid_with_bbox,  # Full grid showing bbox region
                     'grid_after': full_grid_with_bbox,  # Crop doesn't change full grid, but shows bbox
                     'tool_used': 'crop',
-                    'tool_params': {'bbox': obj['bbox']},
-                    'bbox': obj['bbox'],  # Bbox to highlight on full grid
+                    'tool_params': {'bbox': bbox},
+                    'bbox': bbox,  # Bbox to highlight on full grid
                     'object_num': obj_num,
                     'is_crop_step': True,
                     'cropped_grid': cropped_input,  # The actual cropped region
@@ -2205,31 +2462,17 @@ Return ONLY valid JSON in this format:
                 # SUB-SUBSTEP 2: Transform the cropped object
                 subsubstep_num = f"{object_substep_num}.2"
                 
-                # Get cropped output for reference
+                # Get cropped output for reference (Ground Truth for this region)
                 cropped_output = None
-                if output_obj and not is_test:
-                    # For moving objects, bbox must be union of before and after positions
-                    input_bbox = obj['bbox']
-                    output_bbox = output_obj.get('bbox', input_bbox)
-                    # Calculate union bbox: [min(min_r), min(min_c), max(max_r), max(max_c)]
-                    union_bbox = [
-                        min(input_bbox[0], output_bbox[0]),  # min_r
-                        min(input_bbox[1], output_bbox[1]),  # min_c
-                        max(input_bbox[2], output_bbox[2]),  # max_r
-                        max(input_bbox[3], output_bbox[3])   # max_c
-                    ]
-                    # Use union bbox for cropping output (ensures we capture the full movement)
-                    cropped_output, _ = self._crop_to_object(example['output'], union_bbox)
-                    # Update bbox to union for uncrop step (ensures full movement is captured)
-                    bbox = union_bbox
-                else:
-                    # No output object - keep original bbox
-                    bbox = obj['bbox']
-                
-                # Call LLM to transform the cropped object
+                if output_obj and not is_test and example.get('output'):
+                    # Use the target_bbox to crop from the REAL output to show what we aim for
+                     cropped_output, _ = self._crop_to_object(example['output'], bbox)
+
+                # Call LLM to transform
+                # We pass the INPUT OBJECT as reference, but the CROPPED INPUT (current state) as the grid to modify
                 transformed_crop = self._transform_object(
                     cropped_input, cropped_output, obj, output_obj,
-                    general_step, is_test, training_booklets, analysis, example.get('input', [])
+                    general_step, is_test, training_booklets, analysis, example['input']
                 )
                 
                 # Store full grid state before transform (for visualization)
@@ -2240,7 +2483,7 @@ Return ONLY valid JSON in this format:
                     'object_substep': object_substep_num,
                     'general_step': general_step['step_number'],
                     'instruction': f"TRANSFORM: Object {obj_num} ({general_step['transition']})",
-                    'substep_reasoning': f"Applying {general_step['transition']} to object {obj_num} based on condition: {general_step['condition']}",
+                    'substep_reasoning': f"Applying {general_step['transition']} to region based on input object {obj_num}",
                     'grid_before': cropped_input,  # Cropped input region
                     'grid_after': transformed_crop,  # Transformed cropped view (predicted)
                     'full_grid_before': full_grid_before,  # Full grid state before
@@ -2268,6 +2511,7 @@ Return ONLY valid JSON in this format:
                 # Uncrop the transformed object back to full grid
                 booklet['current_grid'] = self._uncrop_to_full_grid(
                     transformed_crop, booklet['current_grid'], bbox
+
                 )
                 
                 # Store full grid state after uncrop
@@ -2297,7 +2541,8 @@ Return ONLY valid JSON in this format:
         if create_steps:
             create_step = create_steps[0]  # Use first create step
             create_step_num = create_step['step_number']
-            print(f"\n    Processing create_objects step {create_step_num}: {create_step['instruction']}")
+            safe_create_instr = self._sanitize_text(create_step['instruction'])
+            print(f"\n    Processing create_objects step {create_step_num}: {safe_create_instr}")
             
             # For training: use detected new_objects if available
             if not is_test:
@@ -2306,7 +2551,8 @@ Return ONLY valid JSON in this format:
                     
                     for new_obj_idx, new_obj in enumerate(new_objects):
                         obj_num = len(input_objects) + new_obj_idx + 1
-                        print(f"      Creating new object {obj_num}: {new_obj.get('description', 'object')}")
+                        safe_obj_desc = self._sanitize_text(new_obj.get('description', 'object'))
+                        print(f"      Creating new object {obj_num}: {safe_obj_desc}")
                         
                         # Create object substep
                         object_substep_num = f"{create_step_num}.{new_obj_idx + 1}"
@@ -2477,6 +2723,7 @@ CRITICAL TOOL USAGE:
    - If transition is 'flip_horizontal', use 'transform' with transformation_type='flip_horizontal'
    - If transition is 'flip_vertical', use 'transform' with transformation_type='flip_vertical'
    - If transition is 'create_objects', use 'create_objects'
+   - If transition is 'crop', use 'crop'
    - If transition is 'transform' or generic, use 'transform' with transformation_type='transform'
 
 3. First, identify objects that match condition: {general_step['condition']}
@@ -2907,25 +3154,147 @@ Return a JSON list of object indices (0-based) that EXACTLY match the condition.
             if input_pattern != output_pattern:
                 transformation_description += f"Object cell positions/colors change. "
         
-        # Build training booklet examples text for test mode
+        # Build training booklet examples for test mode
+        # CRITICAL: Show images and grids from EACH training booklet at THIS EXACT STEP
         training_examples_text = ""
+        training_example_images = []  # Will add image content items
         if is_test and training_booklets:
-            training_examples_text = "\n\n=== TRAINING BOOKLET EXAMPLES (for reference - see how similar objects were transformed) ===\n"
+            training_examples_text = "\n\n=== CRITICAL: TRAINING BOOKLET EXAMPLES - SAME STEP AS YOU ARE EXECUTING ===\n"
+            training_examples_text += f"YOU ARE EXECUTING THE SAME STEP AS TRAINING: Step {general_step['step_number']}\n"
+            training_examples_text += f"Step Description: {self._sanitize_text(general_step.get('instruction', ''))}\n"
+            training_examples_text += f"Condition: {self._sanitize_text(general_step.get('condition', ''))}\n"
+            training_examples_text += f"Transition: {self._sanitize_text(general_step.get('transition', ''))}\n\n"
+            training_examples_text += "CRITICAL WORKFLOW: Training follows CROP -> TRANSFORM -> UNCROP for each object.\n"
+            training_examples_text += "You MUST follow the SAME workflow:\n"
+            training_examples_text += "  1. CROP: Focus on the object region (sub-substep .1)\n"
+            training_examples_text += "  2. TRANSFORM: Apply transformation to cropped region (sub-substep .2)\n"
+            training_examples_text += "  3. UNCROP: Place transformed region back into full grid (sub-substep .3)\n\n"
+            training_examples_text += "BELOW ARE THE EXACT SUBSTEPS AND SUB-SUBSTEPS FROM TRAINING BOOKLETS AT THIS SAME STEP NUMBER.\n"
+            training_examples_text += "Study the substeps (object-level) and sub-substeps (crop/transform/uncrop) to see the exact flow.\n"
+            training_examples_text += "Apply the SAME crop-transform-uncrop pattern to the test object.\n\n"
+            
             for i, train_booklet in enumerate(training_booklets[:3]):  # Limit to first 3 to avoid token bloat
-                # Find steps for the same general step that transformed similar objects
+                # Find steps for the SAME general step number
                 relevant_steps = [
                     step for step in train_booklet.get('steps', [])
-                    if step.get('general_step') == general_step['step_number']
-                    and step.get('tool_used') == 'transform'
+                    if str(step.get('general_step')) == str(general_step['step_number'])
                 ]
+                
                 if relevant_steps:
-                    training_examples_text += f"\nTraining Example {i+1} - Step {general_step['step_number']}:\n"
-                    for step in relevant_steps[:2]:  # Limit to 2 steps per training example
-                        if step.get('grid_before') and step.get('grid_after'):
-                            training_examples_text += f"  Input: {self._format_grid(step['grid_before'])}\n"
-                            training_examples_text += f"  Output: {self._format_grid(step['grid_after'])}\n"
-                            if step.get('substep_reasoning'):
-                                training_examples_text += f"  Reasoning: {step['substep_reasoning']}\n"
+                    training_examples_text += f"\n--- Training Example {i+1} - Step {general_step['step_number']} ---\n"
+                    training_examples_text += f"CRITICAL: Training follows CROP -> TRANSFORM -> UNCROP workflow\n"
+                    training_examples_text += f"Study the substeps and sub-substeps below to see the exact flow.\n\n"
+                    
+                    # Group by object substep to show the full crop-transform-uncrop flow
+                    object_substeps = {}
+                    for step in relevant_steps:
+                        obj_substep = step.get('object_substep', 'general')
+                        if obj_substep not in object_substeps:
+                            object_substeps[obj_substep] = []
+                        object_substeps[obj_substep].append(step)
+                    
+                    # Show up to 2 object substeps per training example
+                    for obj_substep_num, substeps in list(object_substeps.items())[:2]:
+                        training_examples_text += f"\n  Object Substep {obj_substep_num} (full crop-transform-uncrop flow):\n"
+                        
+                        # Sort substeps by step_number to get crop -> transform -> uncrop order
+                        substeps_sorted = sorted(substeps, key=lambda s: s.get('step_number', ''))
+                        
+                        for step in substeps_sorted:
+                            step_num = step.get('step_number', '?')
+                            tool_used = step.get('tool_used', 'unknown')
+                            instruction = step.get('instruction', '')
+                            reasoning = step.get('substep_reasoning', '')
+                            is_subsubstep = step.get('is_subsubstep', False)
+                            
+                            # Identify if this is a sub-substep (crop/transform/uncrop)
+                            step_type = "SUB-SUBSTEP" if is_subsubstep else "SUBSTEP"
+                            training_examples_text += f"\n    {step_type} {step_num} ({tool_used}):\n"
+                            
+                            if instruction:
+                                training_examples_text += f"      Description: {self._sanitize_text(instruction)}\n"
+                            if reasoning:
+                                training_examples_text += f"      Reasoning: {self._sanitize_text(reasoning)}\n"
+                            
+                            # For CROP steps: show full grid with bbox and cropped region
+                            if tool_used == 'crop' or step.get('is_crop_step'):
+                                # Full grid before (shows bbox)
+                                if step.get('grid_before'):
+                                    full_before = step.get('grid_before')
+                                    training_examples_text += f"      Full Grid Before (bbox highlighted): {self._format_grid(full_before)}\n"
+                                    training_example_images.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(full_before, cell_size=30))}"}
+                                    })
+                                
+                                # Cropped region
+                                if step.get('cropped_grid'):
+                                    cropped = step.get('cropped_grid')
+                                    training_examples_text += f"      Cropped Region: {self._format_grid(cropped)}\n"
+                                    training_example_images.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(cropped, cell_size=40))}"},
+                                    })
+                            
+                            # For TRANSFORM steps: show cropped before, after, and target
+                            elif tool_used == 'transform' or step.get('is_cropped_view'):
+                                # Cropped input
+                                if step.get('cropped_grid_before'):
+                                    cropped_before = step.get('cropped_grid_before')
+                                    training_examples_text += f"      Cropped Input: {self._format_grid(cropped_before)}\n"
+                                    training_example_images.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(cropped_before, cell_size=40))}"},
+                                    })
+                                
+                                # Cropped output (transformed)
+                                if step.get('cropped_grid_after'):
+                                    cropped_after = step.get('cropped_grid_after')
+                                    training_examples_text += f"      Cropped Output (Transformed): {self._format_grid(cropped_after)}\n"
+                                    training_example_images.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(cropped_after, cell_size=40))}"},
+ f"Training {i+1} - {step_num} - Cropped After Transform"
+                                    })
+                                
+                                # Target (ground truth) if available
+                                if step.get('cropped_grid_target'):
+                                    cropped_target = step.get('cropped_grid_target')
+                                    training_examples_text += f"      Target (Ground Truth): {self._format_grid(cropped_target)}\n"
+                                    training_example_images.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(cropped_target, cell_size=40))}"},
+ f"Training {i+1} - {step_num} - Target"
+                                    })
+                            
+                            # For UNCROP steps: show full grid before and after
+                            elif tool_used == 'uncrop' or step.get('is_uncrop_step'):
+                                # Full grid before uncrop
+                                if step.get('grid_before'):
+                                    full_before = step.get('grid_before')
+                                    training_examples_text += f"      Full Grid Before Uncrop: {self._format_grid(full_before)}\n"
+                                    training_example_images.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(full_before, cell_size=30))}"},
+ f"Training {i+1} - {step_num} - Full Grid Before Uncrop"
+                                    })
+                                
+                                # Full grid after uncrop
+                                if step.get('grid_after'):
+                                    full_after = step.get('grid_after')
+                                    training_examples_text += f"      Full Grid After Uncrop: {self._format_grid(full_after)}\n"
+                                    training_example_images.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(full_after, cell_size=30))}"},
+ f"Training {i+1} - {step_num} - Full Grid After Uncrop"
+                                    })
+                            
+                            # Fallback: show before/after if available
+                            else:
+                                if step.get('grid_before'):
+                                    training_examples_text += f"      Before: {self._format_grid(step.get('grid_before'))}\n"
+                                if step.get('grid_after'):
+                                    training_examples_text += f"      After: {self._format_grid(step.get('grid_after'))}\n"
         
         # Build analysis summary text for test mode
         analysis_text = ""
@@ -2963,24 +3332,29 @@ CURRENT STEP CONTEXT (Step {general_step['step_number']}):
                     analysis_text += f"General Rule: {analysis['rule']}\n"
         
         # Build the transform prompt text
-        transform_prompt = f"""Transform THIS SPECIFIC OBJECT according to the general step.
+        # CRITICAL: Explicitly state whether we are TRANSFORMING or just LOOKING
+        action_verb = "TRANSFORM" if cropped_output and cropped_input != cropped_output else "ANALYZE"
+        mode_indicator = "TRANSFORMING MODE" if cropped_output else "TEST MODE - APPLY PATTERN"
+        
+        transform_prompt = f"""{action_verb} THIS SPECIFIC OBJECT according to the general step.
 
-CRITICAL: You are transforming a DISTINCT OBJECT.
+CRITICAL MODE INDICATOR: {mode_indicator}
+{'>>> YOU ARE TRANSFORMING THIS OBJECT - THE OUTPUT SHOWS THE TARGET <<<' if cropped_output else '>>> YOU ARE APPLYING THE TRANSFORMATION PATTERN FROM TRAINING - NO GROUND TRUTH OUTPUT AVAILABLE <<<'}
 
-GENERAL STEP: {general_step['instruction']}
-CONDITION: {general_step['condition']}
-TRANSFORMATION TYPE: {general_step['transition']}
+GENERAL STEP: {self._sanitize_text(general_step['instruction'])}
+CONDITION: {self._sanitize_text(general_step['condition'])}
+TRANSFORMATION TYPE: {self._sanitize_text(general_step['transition'])}
 {transformation_description}
 
 CRITICAL: VERIFY THIS OBJECT EXACTLY MATCHES THE CONDITION
 
 THE EXACT CONDITION FOR THIS STEP:
-"{general_step['condition']}"
+"{self._sanitize_text(general_step['condition'])}"
 
 This condition specifies EXACTLY which objects should be transformed. Read it word-by-word and verify this object matches EVERY part of the condition.
 
 THIS OBJECT'S PROPERTIES:
-- Description: {obj.get('description', 'object')}
+- Description: {self._sanitize_text(obj.get('description', 'object'))}
 - Object Colors: {obj.get('colors', [])}
 - Object Size: {obj.get('size', 'N/A')} cells
 - Object Bounding Box: {obj.get('bbox', [])}
@@ -2993,34 +3367,46 @@ EXACT MATCHING CHECKLIST:
 - If condition specifies position (e.g., "at top", "in corner"), verify this object's position matches
 - Do NOT transform objects that look similar but don't match the EXACT condition word-by-word
 
-ONLY transform if this object matches the condition EXACTLY. If there's any doubt, or if the object does NOT match, RETURN THE INPUT GRID UNCHANGED.
+DECISION TREE:
+1. Does this object match the condition EXACTLY? 
+   - NO -> Return INPUT grid UNCHANGED (just looking, not transforming)
+   - YES -> Continue to step 2
+2. {'Is CROPPED OUTPUT different from CROPPED INPUT?' if cropped_output else 'Based on training patterns, should this object be transformed?'}
+   - {'NO (identical) -> Return INPUT grid UNCHANGED (just looking)' if cropped_output else 'NO -> Return INPUT grid UNCHANGED'}
+   - {'YES (different) -> Apply transformation to match CROPPED OUTPUT' if cropped_output else 'YES -> Apply transformation based on training patterns'}
 
 CROPPED INPUT (before transformation):
 {self._format_grid(cropped_input)}
 
-OBJECT CELLS (the distinct object you are transforming): {len(object_cells)} cells with colors {obj.get('colors', [])}
+OBJECT CELLS (the distinct object you are {'transforming' if cropped_output else 'analyzing'}): {len(object_cells)} cells with colors {obj.get('colors', [])}
 SURROUNDING CELLS (background/other regions, should typically remain unchanged): {len(other_cells)} cells
 
-{'CROPPED OUTPUT (target - this is what the transformed object should look like - USE THIS AS YOUR PRIMARY REFERENCE):' if cropped_output else 'Test mode - apply transformation pattern to the DISTINCT OBJECT:'}
-{self._format_grid(cropped_output) if cropped_output else 'N/A'}
+{'>>> CROPPED OUTPUT (TARGET - THIS IS WHAT YOU MUST TRANSFORM THE OBJECT TO):' if cropped_output else '>>> TEST MODE: No ground truth output. Apply transformation pattern from training examples:'}
+{self._format_grid(cropped_output) if cropped_output else 'N/A - Use training patterns below'}
 
-CRITICAL: If you have CROPPED OUTPUT above, that is the EXACT target. Compare CROPPED INPUT to CROPPED OUTPUT.
-- If CROPPED OUTPUT is IDENTICAL to CROPPED INPUT, you MUST return the input grid UNCHANGED.
-- If they are different, apply the exact transformation shown.
+{'CRITICAL TRANSFORMATION RULE:' if cropped_output else 'CRITICAL TEST MODE RULE:'}
+{'1. Compare CROPPED INPUT to CROPPED OUTPUT above.' if cropped_output else '1. Look at training examples below to see how similar objects were transformed.'}
+{'2. If CROPPED OUTPUT is IDENTICAL to CROPPED INPUT -> Return INPUT grid UNCHANGED (you are just looking, not transforming).' if cropped_output else '2. Apply the same transformation pattern to this test object.'}
+{'3. If CROPPED OUTPUT is DIFFERENT from CROPPED INPUT -> Apply the exact transformation shown (you are TRANSFORMING).' if cropped_output else '3. Use the training booklet examples as reference for how to transform.'}
 
 {training_examples_text}
 {analysis_text}
 
-CRITICAL:
-1. Verify object matches condition: "{general_step['condition']}"
-2. Compare CROPPED INPUT vs CROPPED OUTPUT above.
-3. If target is same as input, OR object doesn't match condition -> Return INPUT grid.
-4. If target is different AND object matches -> Apply transformation.
-5. Use transform tool with:
-   - transformation_type="{general_step['transition']}"
-   - grid: The result grid (changed or unchanged)
+CRITICAL: YOU ARE IN THE TRANSFORM SUB-SUBSTEP OF THE CROP-TRANSFORM-UNCROP WORKFLOW
+{'In training mode, you have the target output. Transform the cropped input to match the cropped output.' if cropped_output else 'In test mode, you are executing the TRANSFORM sub-substep. Look at training examples above to see how the TRANSFORM sub-substep was executed in training.'}
+{'The training examples show the EXACT same step with crop->transform->uncrop flow. Follow the same pattern.' if is_test else ''}
 
-Transform now."""
+FINAL INSTRUCTIONS:
+1. Verify object matches condition: "{self._sanitize_text(general_step['condition'])}"
+2. {'Compare CROPPED INPUT vs CROPPED OUTPUT above.' if cropped_output else 'Review training examples above - they show the EXACT substeps and sub-substeps (crop/transform/uncrop) for this step.'}
+3. {'If target is same as input, OR object doesn\'t match condition -> Return INPUT grid (JUST LOOKING, NOT TRANSFORMING).' if cropped_output else 'If object doesn\'t match condition -> Return INPUT grid (JUST LOOKING, NOT TRANSFORMING).'}
+4. {'If target is different AND object matches -> Apply transformation (YOU ARE TRANSFORMING).' if cropped_output else 'If object matches condition -> Apply the SAME transformation as shown in training substeps/sub-substeps (YOU ARE TRANSFORMING).'}
+5. {'Remember: You are in the TRANSFORM sub-substep. The CROP already happened, and UNCROP will happen next.' if is_test else ''}
+6. Use transform tool with:
+   - transformation_type="{general_step['transition']}"
+   - grid: The result grid (changed if transforming, unchanged if just looking)
+
+{'>>> APPLY SAME TRANSFORM AS TRAINING SUB-SUBSTEPS <<<' if is_test else '>>> TRANSFORM NOW <<<'}"""
         
         content = [
             {
@@ -3045,6 +3431,19 @@ Transform now."""
                 "type": "image_url",
                 "image_url": {"url": f"data:image/png;base64,{self._image_to_base64(grid_to_image(test_input_grid, cell_size=40))}"}
             })
+        
+        # CRITICAL: Add training booklet images for test mode
+        # These show the EXACT same step from training examples with images and grids
+        if is_test and training_example_images:
+            # Add a text separator before training images
+            content.append({
+                "type": "text",
+                "text": f"\n=== TRAINING BOOKLET IMAGES - Step {general_step['step_number']} ===\n"
+                       f"The images below show how this EXACT step was executed in training examples.\n"
+                       f"Study them to understand the transformation pattern.\n"
+            })
+            # Add all training example images
+            content.extend(training_example_images)
         
         response_text, tool_calls = self._call_llm_analysis(content, use_tools=True)
         
