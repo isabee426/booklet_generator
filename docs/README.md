@@ -1,5 +1,5 @@
 # 🧩 ARC Puzzle Creator & AI Step Generator
-
+# PAPER CAN BE FOUND HERE: [PAPER](https://drive.google.com/file/d/1vAygiFlweI_tZg8ULc2_QoSXdrMOoNsa/view?pli=1)
 **Create visual traces for ARC-AGI puzzles with an interactive web interface + AI-powered step-by-step generation**
 
 Based on [arcprize.org/play](https://arcprize.org/play) with enhanced features for creating step-by-step transformation traces, plus AI generation and testing capabilities.
